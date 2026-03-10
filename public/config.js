@@ -12,5 +12,5 @@
  *         → https://vercel.com → Import project
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
-window.BACKEND_URL = 'https://huggingface.co/spaces/rajeshragi/project';
+window.BACKEND_URL = 'https://rajeshragi-project.hf.space';
 // Example: window.BACKEND_URL = 'https://yourname-pft-ast.hf.space';
