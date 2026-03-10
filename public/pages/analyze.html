@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#4361EE"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+<title>PFT-AST · Analyze</title>
+<link rel="manifest" href="/manifest.json"><link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/app.css">
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+<div class="overlay" id="overlay" onclick="closeNav()"></div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-mark"><svg width="36" height="36" viewBox="0 0 36 36" fill="none"><rect width="36" height="36" rx="9" fill="#EEF2FF"/><circle cx="18" cy="18" r="10" stroke="#4361EE" stroke-width="1.5" opacity=".3"/><circle cx="18" cy="18" r="6" stroke="#4361EE" stroke-width="1.5" opacity=".6"/><circle cx="18" cy="18" r="2.5" fill="#4361EE"/><line x1="18" y1="4" x2="18" y2="8" stroke="#4361EE" stroke-width="1.5"/><line x1="18" y1="28" x2="18" y2="32" stroke="#4361EE" stroke-width="1.5"/><line x1="4" y1="18" x2="8" y2="18" stroke="#4361EE" stroke-width="1.5"/><line x1="28" y1="18" x2="32" y2="18" stroke="#4361EE" stroke-width="1.5"/></svg></div>
+    <div><div class="brand-name">PFT-AST</div><div class="brand-tag">Threat Intelligence</div></div>
+    <button class="sidebar-close" onclick="closeNav()">✕</button>
+  </div>
+  <div class="sys-status online" id="livePill"><span class="sys-dot"></span><span id="liveLabel">Connecting...</span></div>
+  <nav class="sidebar-nav">
+    <a href="/"                   class="nav-a" data-p="dashboard"><svg class="nav-ic" viewBox="0 0 18 18" fill="currentColor"><rect x="1" y="1" width="7" height="7" rx="1.5"/><rect x="10" y="1" width="7" height="7" rx="1.5"/><rect x="1" y="10" width="7" height="7" rx="1.5"/><rect x="10" y="10" width="7" height="7" rx="1.5"/></svg>Dashboard</a>
+    <a href="/pages/analyze.html" class="nav-a on" data-p="analyze"><svg class="nav-ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 1a5.5 5.5 0 0 0-5.5 5.5v5L2 14h14l-1.5-2.5v-5A5.5 5.5 0 0 0 9 1z"/><line x1="9" y1="14" x2="9" y2="17"/></svg>Analyze Audio</a>
+    <a href="/pages/history.html" class="nav-a" data-p="history"><svg class="nav-ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="7"/><polyline points="9,5 9,9 12,11"/></svg>History</a>
+    <a href="/pages/alerts.html"  class="nav-a" data-p="alerts"><svg class="nav-ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2a5 5 0 0 0-5 5v4l-1.5 2h13L14 11V7a5 5 0 0 0-5-5z"/><path d="M7 15a2 2 0 0 0 4 0"/></svg>Alerts<span class="nav-badge" id="navBadge">0</span></a>
+  </nav>
+  <div class="sinfo"><div class="sinfo-hdr">Model Config</div><div class="sinfo-row"><span>Threshold τ</span><span class="sinfo-val hi">0.75</span></div><div class="sinfo-row"><span>Macro-F1</span><span class="sinfo-val hi">0.88</span></div><div class="sinfo-row"><span>AUC</span><span class="sinfo-val hi">0.962</span></div><div class="sinfo-row"><span>FAR</span><span class="sinfo-val">3.2%</span></div></div>
+</aside>
+
+<nav class="bot-nav"><div class="bot-nav-inner">
+  <a href="/"                   class="bn" data-p="dashboard"><svg class="bn-ic" viewBox="0 0 22 22" fill="currentColor"><rect x="1" y="1" width="8" height="8" rx="1.5"/><rect x="13" y="1" width="8" height="8" rx="1.5"/><rect x="1" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>Dashboard</a>
+  <a href="/pages/analyze.html" class="bn on" data-p="analyze"><svg class="bn-ic" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 1a6.5 6.5 0 0 0-6.5 6.5v6L3 17h16l-1.5-3.5v-6A6.5 6.5 0 0 0 11 1z"/><line x1="11" y1="17" x2="11" y2="21"/></svg>Analyze</a>
+  <a href="/pages/history.html" class="bn" data-p="history"><svg class="bn-ic" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><polyline points="11,7 11,11 14,13"/></svg>History</a>
+  <a href="/pages/alerts.html"  class="bn" data-p="alerts"><svg class="bn-ic" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 2a6 6 0 0 0-6 6v5L3 16h16l-2-3V8a6 6 0 0 0-6-6z"/><path d="M8.5 18a2.5 2.5 0 0 0 5 0"/></svg>Alerts<span class="bn-bdg" id="bnAlertDot">0</span></a>
+</div></nav>
+
+<div class="shell">
+<header class="topbar">
+  <div class="topbar-l"><button class="hamburger" onclick="openNav()"><span></span><span></span><span></span></button><div><div class="topbar-title">Analyze Audio</div><div class="topbar-sub">Upload a file or record live — full analysis shown below</div></div></div>
+  <div class="topbar-r"><div class="conn-pill online" id="connPill"><span class="cpd"></span><span>Live</span></div><button class="bell-btn" id="bellBtn" onclick="location.href='/pages/alerts.html'"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1A5 5 0 0 0 3 6v4.5L1.5 13h13L13 10.5V6A5 5 0 0 0 8 1z"/><path d="M6 14a2 2 0 0 0 4 0"/></svg><span class="bell-ct" id="bellCount">0</span></button><div class="status-chip safe" id="statusChip"><span class="sdot"></span><span class="status-txt">SAFE</span></div></div>
+</header>
+<main class="main">
+  <div class="alert-banner" id="alertBanner"><span class="ab-icon">⚠️</span><div class="ab-body"><div class="ab-title">THREAT DETECTED</div><div class="ab-detail" id="bannerDetail">—</div></div><button class="ab-close" onclick="closeBanner()">✕</button></div>
+
+  <!-- Input section -->
+  <div class="analyze-grid gap14">
+    <!-- Upload / Record card -->
+    <div class="card">
+      <div class="tabs">
+        <button class="tab-btn on" data-tab="upload" onclick="switchTab('upload')">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6.5 1v9M3 4.5l3.5-3.5 3.5 3.5"/><path d="M1 12h11"/></svg>
+          Upload File
+        </button>
+        <button class="tab-btn" data-tab="record" onclick="switchTab('record')">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6.5 1a3 3 0 0 0-3 3v3.5L2 10h9l-1.5-2.5V4a3 3 0 0 0-3-3z"/><line x1="6.5" y1="10" x2="6.5" y2="12.5"/></svg>
+          Live Record
+        </button>
+      </div>
+
+      <!-- Upload pane -->
+      <div class="tab-pane on" id="pane-upload">
+        <div class="dz" id="dropzone">
+          <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#4361EE" stroke-width="1.3" opacity=".5"><path d="M20 5v22M13 12l7-7 7 7"/><path d="M5 30c0 3.5 30 3.5 30 0" opacity=".4"/></svg>
+          <div class="dz-title">Drop audio file here</div>
+          <div class="dz-sub">WAV · MP3 · FLAC · OGG · M4A · WebM · AAC</div>
+          <button class="btn-ghost" type="button" onclick="event.stopPropagation();document.getElementById('audioIn').click()">Browse Files</button>
+        </div>
+        <input type="file" id="audioIn" accept="audio/*" hidden>
+        <div class="file-chip" id="fileChip">
+          <span class="fc-icon">🎵</span>
+          <div class="fc-info"><div class="fc-name" id="fcName">—</div><div class="fc-size" id="fcSize">—</div></div>
+          <button class="fc-rm" onclick="clearFile()">✕</button>
+        </div>
+        <button class="btn-primary" onclick="analyzeUpload()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="3,2 13,7 3,12"/></svg>
+          Run PFT-AST Analysis
+        </button>
+      </div>
+
+      <!-- Record pane -->
+      <div class="tab-pane" id="pane-record">
+        <div class="rec-wrap">
+          <div class="rec-viz"><canvas id="recC"></canvas><div class="rec-lbl" id="recVizLbl">Ready to record</div></div>
+          <div class="rec-timer" id="recTimer">00:00</div>
+          <div class="rec-btns">
+            <button class="btn-rec" id="btnRec" onclick="toggleRec()">
+              <span class="rec-dot"></span><span id="recBtnLbl">Record</span>
+            </button>
+            <button class="btn-analyze-r" id="btnAnalyzeRec" onclick="analyzeRec()" disabled>
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2"><polygon points="2,1 12,6.5 2,12"/></svg>
+              Analyze
+            </button>
+          </div>
+          <p style="font-size:10px;color:var(--t4);text-align:center;margin-top:2px">Max 60s · Results appear below and sync to all dashboards</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick result summary card (appears after analysis) -->
+    <div class="card" id="resultCard" style="display:none">
+      <div class="card-hd" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 0">
+        <span class="card-title">RESULT SUMMARY</span>
+        <span id="resRisk" class="rtag r-safe">SAFE</span>
+      </div>
+      <div class="card-sub">Analysis saved · Dashboard updated · Notifications sent if threat</div>
+      <div style="padding:14px 16px">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px">
+          <canvas id="resGauge" width="82" height="82"></canvas>
+          <div>
+            <div style="font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:1px;font-weight:600">Threat Score</div>
+            <div style="font-size:40px;font-weight:800;color:var(--t1);line-height:1;letter-spacing:-2px" id="resPct">—</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:4px">τ threshold = 0.75</div>
+          </div>
+        </div>
+        <div style="margin-bottom:12px"><div style="font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-bottom:6px">Top 10 Classes</div><div id="resClasses"></div></div>
+        <a href="/" style="display:block;text-align:center;font-size:11px;color:var(--blue);font-weight:600;padding:8px;background:#EEF2FF;border-radius:8px;text-decoration:none">View full analysis on Dashboard →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full analysis result (appears after analysis) -->
+  <div id="fullResult" style="display:none">
+
+    <!-- Images row -->
+    <div class="analyze-grid gap14">
+      <div class="card">
+        <div class="card-hd"><span class="card-title">LOG-MEL SPECTROGRAM</span></div>
+        <div class="card-sub">128 mel bands · viridis colormap</div>
+        <div class="img-wrap"><img id="resSpec" alt="spectrogram"></div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><span class="card-title">WAVEFORM</span></div>
+        <div class="card-sub">Normalized amplitude · 16 kHz</div>
+        <div class="img-wrap"><img id="resWave" alt="waveform"></div>
+      </div>
+    </div>
+
+    <!-- Threat classes + breakdown -->
+    <div class="analyze-grid gap14">
+      <div class="card">
+        <div class="card-hd"><span class="card-title">THREAT CLASS SCORES</span></div>
+        <div class="card-sub">5-class threat set · Score_t(x) = max p(c|x)</div>
+        <div class="thr-list" id="resThrList"></div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><span class="card-title">AUDIO METADATA</span></div>
+        <div class="card-sub">Signal properties</div>
+        <div class="meta-row-grid" id="resMeta" style="grid-template-columns:1fr 1fr"></div>
+      </div>
+    </div>
+
+    <!-- Temporal frames -->
+    <div class="card gap14">
+      <div class="card-hd"><span class="card-title">TEMPORAL SEGMENT BREAKDOWN — 5 FRAMES</span></div>
+      <div class="card-sub">Each segment independently classified · red = threat detected</div>
+      <div class="frames-grid" id="resFrames"></div>
+    </div>
+
+  </div>
+
+</main>
+</div>
+
+<div class="loader" id="loader"><div class="loader-box"><div class="sonar"><div class="s-ring"></div><div class="s-ring"></div><div class="s-ring"></div><div class="s-core"></div></div><div class="loader-title">Running PFT-AST Inference</div><div class="loader-msg" id="loaderMsg">Classifying 527 AudioSet classes...</div></div></div>
+
+<script src="/config.js"></script>
+<script src="/app.js"></script>
+<script>
+window.PAGE = 'analyze';
+// Override showResult to also show full result section
+const _origShow = showResult;
+window.showResult = function(data) {
+  _origShow(data);
+  document.getElementById('fullResult').style.display = 'block';
+  // Render images in result section
+  renderImg2('resSpec',  data.spectrogram);
+  renderImg2('resWave',  data.waveform_img);
+  renderThrDetail2(data.threat_detail);
+  renderFrames2(data.frames);
+  renderMeta2(data);
+};
+initPage();
+</script>
+</body>
+</html>

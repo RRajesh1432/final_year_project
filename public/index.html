@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#4361EE">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PFT-AST">
+<title>PFT-AST · Dashboard</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/app.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+
+<!-- ░░ Overlay ░░ -->
+<div class="overlay" id="overlay" onclick="closeNav()"></div>
+
+<!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+     SIDEBAR
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-mark">
+      <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+        <rect width="36" height="36" rx="9" fill="#EEF2FF"/>
+        <circle cx="18" cy="18" r="10" stroke="#4361EE" stroke-width="1.5" opacity=".3"/>
+        <circle cx="18" cy="18" r="6"  stroke="#4361EE" stroke-width="1.5" opacity=".6"/>
+        <circle cx="18" cy="18" r="2.5" fill="#4361EE"/>
+        <line x1="18" y1="4"  x2="18" y2="8"  stroke="#4361EE" stroke-width="1.5"/>
+        <line x1="18" y1="28" x2="18" y2="32" stroke="#4361EE" stroke-width="1.5"/>
+        <line x1="4"  y1="18" x2="8"  y2="18" stroke="#4361EE" stroke-width="1.5"/>
+        <line x1="28" y1="18" x2="32" y2="18" stroke="#4361EE" stroke-width="1.5"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-name">PFT-AST</div>
+      <div class="brand-tag">Threat Intelligence</div>
+    </div>
+    <button class="sidebar-close" onclick="closeNav()">✕</button>
+  </div>
+
+  <div class="sys-status online" id="livePill">
+    <span class="sys-dot"></span>
+    <span id="liveLabel">Connecting...</span>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a href="/"                   class="nav-a on" data-p="dashboard">
+      <svg class="nav-ic" viewBox="0 0 18 18" fill="currentColor"><rect x="1" y="1" width="7" height="7" rx="1.5"/><rect x="10" y="1" width="7" height="7" rx="1.5"/><rect x="1" y="10" width="7" height="7" rx="1.5"/><rect x="10" y="10" width="7" height="7" rx="1.5"/></svg>
+      Dashboard
+    </a>
+    <a href="/pages/analyze.html" class="nav-a" data-p="analyze">
+      <svg class="nav-ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 1a5.5 5.5 0 0 0-5.5 5.5v5L2 14h14l-1.5-2.5v-5A5.5 5.5 0 0 0 9 1z"/><line x1="9" y1="14" x2="9" y2="17"/></svg>
+      Analyze Audio
+    </a>
+    <a href="/pages/history.html" class="nav-a" data-p="history">
+      <svg class="nav-ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="7"/><polyline points="9,5 9,9 12,11"/></svg>
+      History
+    </a>
+    <a href="/pages/alerts.html"  class="nav-a" data-p="alerts">
+      <svg class="nav-ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2a5 5 0 0 0-5 5v4l-1.5 2h13L14 11V7a5 5 0 0 0-5-5z"/><path d="M7 15a2 2 0 0 0 4 0"/></svg>
+      Alerts
+      <span class="nav-badge" id="navBadge">0</span>
+    </a>
+  </nav>
+
+  <div class="sinfo">
+    <div class="sinfo-hdr">Model Config</div>
+    <div class="sinfo-row"><span>Architecture</span><span class="sinfo-val">AST</span></div>
+    <div class="sinfo-row"><span>Checkpoint</span><span class="sinfo-val" style="font-size:9px">MIT/ast-finetuned</span></div>
+    <div class="sinfo-row"><span>Frozen Layers</span><span class="sinfo-val">1–6 / 12</span></div>
+    <div class="sinfo-row"><span>Classes</span><span class="sinfo-val">527</span></div>
+    <div class="sinfo-row"><span>Threshold τ</span><span class="sinfo-val hi">0.75</span></div>
+    <div class="sinfo-row"><span>Macro-F1</span><span class="sinfo-val hi">0.88</span></div>
+    <div class="sinfo-row"><span>AUC</span><span class="sinfo-val hi">0.962</span></div>
+  </div>
+  <div class="sinfo">
+    <div class="sinfo-hdr">Threat Set C_t</div>
+    <div class="threat-chips">
+      <span class="tchip">Gunshot</span><span class="tchip">Explosion</span>
+      <span class="tchip">Glass Break</span><span class="tchip">Scream</span>
+      <span class="tchip">Siren</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ░░ Bottom Nav (mobile) ░░ -->
+<nav class="bot-nav">
+  <div class="bot-nav-inner">
+    <a href="/"                   class="bn on" data-p="dashboard">
+      <svg class="bn-ic" viewBox="0 0 22 22" fill="currentColor"><rect x="1" y="1" width="8" height="8" rx="1.5"/><rect x="13" y="1" width="8" height="8" rx="1.5"/><rect x="1" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+      Dashboard
+    </a>
+    <a href="/pages/analyze.html" class="bn" data-p="analyze">
+      <svg class="bn-ic" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 1a6.5 6.5 0 0 0-6.5 6.5v6L3 17h16l-1.5-3.5v-6A6.5 6.5 0 0 0 11 1z"/><line x1="11" y1="17" x2="11" y2="21"/></svg>
+      Analyze
+    </a>
+    <a href="/pages/history.html" class="bn" data-p="history">
+      <svg class="bn-ic" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><polyline points="11,7 11,11 14,13"/></svg>
+      History
+    </a>
+    <a href="/pages/alerts.html"  class="bn" data-p="alerts">
+      <svg class="bn-ic" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 2a6 6 0 0 0-6 6v5L3 16h16l-2-3V8a6 6 0 0 0-6-6z"/><path d="M8.5 18a2.5 2.5 0 0 0 5 0"/></svg>
+      Alerts
+      <span class="bn-bdg" id="bnAlertDot">0</span>
+    </a>
+  </div>
+</nav>
+
+<!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+     APP SHELL
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ -->
+<div class="shell">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-l">
+      <button class="hamburger" onclick="openNav()"><span></span><span></span><span></span></button>
+      <div>
+        <div class="topbar-title">Live Dashboard</div>
+        <div class="topbar-sub">Real-time acoustic threat monitoring · All devices</div>
+      </div>
+    </div>
+    <div class="topbar-r">
+      <div class="conn-pill online" id="connPill"><span class="cpd"></span><span>Live</span></div>
+      <button class="bell-btn" id="bellBtn" onclick="location.href='/pages/alerts.html'">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+          <path d="M8 1A5 5 0 0 0 3 6v4.5L1.5 13h13L13 10.5V6A5 5 0 0 0 8 1z"/>
+          <path d="M6 14a2 2 0 0 0 4 0"/>
+        </svg>
+        <span class="bell-ct" id="bellCount">0</span>
+      </button>
+      <div class="status-chip safe" id="statusChip">
+        <span class="sdot"></span><span class="status-txt">SAFE</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Alert banner -->
+    <div class="alert-banner" id="alertBanner">
+      <span class="ab-icon">⚠️</span>
+      <div class="ab-body">
+        <div class="ab-title">ACOUSTIC THREAT DETECTED</div>
+        <div class="ab-detail" id="bannerDetail">—</div>
+      </div>
+      <button class="ab-close" onclick="closeBanner()">✕</button>
+    </div>
+
+    <!-- Stats row -->
+    <div class="stats-row gap20">
+      <div class="stat">
+        <div class="stat-stripe blue"></div>
+        <div class="stat-ic si-blue">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#4361EE" stroke-width="1.7"><rect x="2" y="2" width="16" height="16" rx="2"/><line x1="2" y1="8" x2="18" y2="8"/><line x1="7" y1="2" x2="7" y2="8"/><line x1="13" y1="2" x2="13" y2="8"/></svg>
+        </div>
+        <div><div class="stat-n" id="sTotal">0</div><div class="stat-l">Total Analyses</div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-stripe red"></div>
+        <div class="stat-ic si-red">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#DC2626" stroke-width="1.7"><path d="M10 2L2 17h16L10 2z"/><line x1="10" y1="9" x2="10" y2="13"/><circle cx="10" cy="15.5" r=".8" fill="#DC2626"/></svg>
+        </div>
+        <div><div class="stat-n" id="sThreat">0</div><div class="stat-l">Threats Found</div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-stripe green"></div>
+        <div class="stat-ic si-green">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#059669" stroke-width="1.7"><polyline points="4,10 8,14 16,6"/></svg>
+        </div>
+        <div><div class="stat-n" id="sAvg">—</div><div class="stat-l">Avg Threat Score</div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-stripe amber"></div>
+        <div class="stat-ic si-amber">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#D97706" stroke-width="1.7"><circle cx="10" cy="10" r="7.5"/><line x1="10" y1="6" x2="10" y2="10"/><line x1="10" y1="10" x2="13" y2="12"/></svg>
+        </div>
+        <div><div class="stat-n" id="sRate">0%</div><div class="stat-l">Threat Rate</div></div>
+      </div>
+    </div>
+
+    <!-- ── Full Analysis Grid ── -->
+    <div class="analysis-grid gap14">
+
+      <!-- Gauge -->
+      <div class="card ag-gauge">
+        <div class="card-hd"><span class="card-title">THREAT SCORE</span></div>
+        <div class="card-sub">Score_t(x) = max p(c|x) · τ = 0.75</div>
+        <div class="gauge-wrap">
+          <canvas id="gaugeC" width="165" height="165"></canvas>
+          <div class="gauge-mid">
+            <div class="gauge-pct" id="gaugePct">—</div>
+            <div class="gauge-tau">τ = 0.75</div>
+          </div>
+        </div>
+        <div class="gauge-risk safe" id="gaugeRisk">AWAITING</div>
+      </div>
+
+      <!-- Spectrogram -->
+      <div class="card ag-spec">
+        <div class="card-hd"><span class="card-title">LOG-MEL SPECTROGRAM</span></div>
+        <div class="card-sub">S(m,τ) = log(M(m,τ) + ε) · 128 mel bands · viridis</div>
+        <div class="img-wrap">
+          <img id="specImg" alt="spectrogram">
+          <div class="img-empty" id="specEmpty">
+            <svg width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="#CBD5E1" stroke-width="1.3"><rect x="3" y="10" width="38" height="24" rx="2"/><path d="M3 22h38M11 17v10M18 14v16M25 18v8M32 15v14"/></svg>
+            <span>Spectrogram appears here</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Waveform -->
+      <div class="card ag-wave">
+        <div class="card-hd"><span class="card-title">WAVEFORM</span></div>
+        <div class="card-sub">Normalized amplitude · 16 kHz mono</div>
+        <div class="img-wrap">
+          <img id="waveImg" alt="waveform">
+          <div class="img-empty" id="waveEmpty">
+            <svg width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="#CBD5E1" stroke-width="1.3"><path d="M2 22h5M7 14v16M12 18v8M17 10v24M22 16v12M27 12v20M32 17v10M37 14v16M39 22h3"/></svg>
+            <span>Waveform appears here</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Probability Chart -->
+      <div class="card ag-chart">
+        <div class="card-hd"><span class="card-title">TEMPORAL THREAT SCORE — 5 SEGMENTS</span></div>
+        <div class="card-sub">Per-segment threat probability · red dashed line = τ threshold</div>
+        <div class="chart-wrap"><canvas id="probChart" height="85"></canvas></div>
+      </div>
+
+      <!-- Top 20 AudioSet Classes -->
+      <div class="card ag-classes">
+        <div class="card-hd"><span class="card-title">TOP AUDIOSET CLASSES (527-class softmax)</span></div>
+        <div class="card-sub">Ranked prediction probabilities · red = threat class</div>
+        <div class="cls-list" id="clsList"><div class="empty">Submit audio to see class predictions</div></div>
+      </div>
+
+      <!-- Threat breakdown -->
+      <div class="card ag-thr">
+        <div class="card-hd"><span class="card-title">THREAT CLASS SCORES</span></div>
+        <div class="card-sub">C_t = {gunshot, explosion, glass, scream, siren}</div>
+        <div class="thr-list" id="thrList"><div class="empty">No analysis yet</div></div>
+      </div>
+
+      <!-- Temporal frames -->
+      <div class="card ag-frames">
+        <div class="card-hd"><span class="card-title">TEMPORAL SEGMENT BREAKDOWN — 5 FRAMES</span></div>
+        <div class="card-sub">Per-segment top class, confidence, and threat status</div>
+        <div class="frames-grid" id="framesGrid">
+          <div class="empty" style="grid-column:1/-1;padding:22px">Temporal analysis appears here after submission</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Audio Metadata -->
+    <div class="card gap14">
+      <div class="card-hd"><span class="card-title">AUDIO METADATA</span></div>
+      <div class="card-sub">Signal properties of the analyzed sample</div>
+      <div class="meta-row-grid" id="metaGrid">
+        <div class="meta-item"><div class="meta-val2">—</div><div class="meta-lbl2">Duration</div></div>
+        <div class="meta-item"><div class="meta-val2">—</div><div class="meta-lbl2">Sample Rate</div></div>
+        <div class="meta-item"><div class="meta-val2">527</div><div class="meta-lbl2">Classes</div></div>
+        <div class="meta-item"><div class="meta-val2">0.75</div><div class="meta-lbl2">Threshold τ</div></div>
+      </div>
+    </div>
+
+    <!-- Live Feed -->
+    <div class="card">
+      <div class="feed-hd">
+        <div>
+          <div class="card-title">LIVE ANALYSIS FEED</div>
+          <div style="font-size:10px;color:var(--t4);margin-top:2px">Real-time from all connected devices via WebSocket</div>
+        </div>
+        <div class="feed-live">
+          <span class="feed-ldot"></span>
+          <span id="feedCount">0 events</span>
+        </div>
+      </div>
+      <div class="feed-list" id="feedList">
+        <div class="empty">Waiting for submissions from any device...</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- FAB -->
+<button class="fab" onclick="location.href='/pages/analyze.html'" title="Analyze Audio">🎙</button>
+
+<!-- Loader -->
+<div class="loader" id="loader">
+  <div class="loader-box">
+    <div class="sonar"><div class="s-ring"></div><div class="s-ring"></div><div class="s-ring"></div><div class="s-core"></div></div>
+    <div class="loader-title">Analyzing with PFT-AST</div>
+    <div class="loader-msg" id="loaderMsg">Running inference on 527 AudioSet classes...</div>
+  </div>
+</div>
+
+<script src="/config.js"></script>
+<script src="/app.js"></script>
+<script>window.PAGE = 'dashboard'; initPage();</script>
+</body>
+</html>

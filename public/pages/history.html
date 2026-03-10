@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#4361EE"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+<title>PFT-AST · History</title>
+<link rel="manifest" href="/manifest.json"><link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/app.css">
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+<div class="overlay" id="overlay" onclick="closeNav()"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark"><svg width="36" height="36" viewBox="0 0 36 36" fill="none"><rect width="36" height="36" rx="9" fill="#EEF2FF"/><circle cx="18" cy="18" r="10" stroke="#4361EE" stroke-width="1.5" opacity=".3"/><circle cx="18" cy="18" r="6" stroke="#4361EE" stroke-width="1.5" opacity=".6"/><circle cx="18" cy="18" r="2.5" fill="#4361EE"/><line x1="18" y1="4" x2="18" y2="8" stroke="#4361EE" stroke-width="1.5"/><line x1="18" y1="28" x2="18" y2="32" stroke="#4361EE" stroke-width="1.5"/><line x1="4" y1="18" x2="8" y2="18" stroke="#4361EE" stroke-width="1.5"/><line x1="28" y1="18" x2="32" y2="18" stroke="#4361EE" stroke-width="1.5"/></svg></div><div><div class="brand-name">PFT-AST</div><div class="brand-tag">Threat Intelligence</div></div><button class="sidebar-close" onclick="closeNav()">✕</button></div>
+  <div class="sys-status online" id="livePill"><span class="sys-dot"></span><span id="liveLabel">Connecting...</span></div>
+  <nav class="sidebar-nav">
+    <a href="/"                   class="nav-a" data-p="dashboard"><svg class="nav-ic" viewBox="0 0 18 18" fill="currentColor"><rect x="1" y="1" width="7" height="7" rx="1.5"/><rect x="10" y="1" width="7" height="7" rx="1.5"/><rect x="1" y="10" width="7" height="7" rx="1.5"/><rect x="10" y="10" width="7" height="7" rx="1.5"/></svg>Dashboard</a>
+    <a href="/pages/analyze.html" class="nav-a" data-p="analyze"><svg class="nav-ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 1a5.5 5.5 0 0 0-5.5 5.5v5L2 14h14l-1.5-2.5v-5A5.5 5.5 0 0 0 9 1z"/><line x1="9" y1="14" x2="9" y2="17"/></svg>Analyze Audio</a>
+    <a href="/pages/history.html" class="nav-a on" data-p="history"><svg class="nav-ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="7"/><polyline points="9,5 9,9 12,11"/></svg>History</a>
+    <a href="/pages/alerts.html"  class="nav-a" data-p="alerts"><svg class="nav-ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2a5 5 0 0 0-5 5v4l-1.5 2h13L14 11V7a5 5 0 0 0-5-5z"/><path d="M7 15a2 2 0 0 0 4 0"/></svg>Alerts<span class="nav-badge" id="navBadge">0</span></a>
+  </nav>
+</aside>
+<nav class="bot-nav"><div class="bot-nav-inner">
+  <a href="/"                   class="bn" data-p="dashboard"><svg class="bn-ic" viewBox="0 0 22 22" fill="currentColor"><rect x="1" y="1" width="8" height="8" rx="1.5"/><rect x="13" y="1" width="8" height="8" rx="1.5"/><rect x="1" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>Dashboard</a>
+  <a href="/pages/analyze.html" class="bn" data-p="analyze"><svg class="bn-ic" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 1a6.5 6.5 0 0 0-6.5 6.5v6L3 17h16l-1.5-3.5v-6A6.5 6.5 0 0 0 11 1z"/><line x1="11" y1="17" x2="11" y2="21"/></svg>Analyze</a>
+  <a href="/pages/history.html" class="bn on" data-p="history"><svg class="bn-ic" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><polyline points="11,7 11,11 14,13"/></svg>History</a>
+  <a href="/pages/alerts.html"  class="bn" data-p="alerts"><svg class="bn-ic" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 2a6 6 0 0 0-6 6v5L3 16h16l-2-3V8a6 6 0 0 0-6-6z"/><path d="M8.5 18a2.5 2.5 0 0 0 5 0"/></svg>Alerts<span class="bn-bdg" id="bnAlertDot">0</span></a>
+</div></nav>
+
+<div class="shell">
+<header class="topbar">
+  <div class="topbar-l"><button class="hamburger" onclick="openNav()"><span></span><span></span><span></span></button><div><div class="topbar-title">Analysis History</div><div class="topbar-sub">All analyses from every device — newest first</div></div></div>
+  <div class="topbar-r"><div class="conn-pill online" id="connPill"><span class="cpd"></span><span>Live</span></div><button class="bell-btn" id="bellBtn" onclick="location.href='/pages/alerts.html'"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1A5 5 0 0 0 3 6v4.5L1.5 13h13L13 10.5V6A5 5 0 0 0 8 1z"/><path d="M6 14a2 2 0 0 0 4 0"/></svg><span class="bell-ct" id="bellCount">0</span></button></div>
+</header>
+<main class="main">
+  <div class="alert-banner" id="alertBanner"><span class="ab-icon">⚠️</span><div class="ab-body"><div class="ab-title">THREAT DETECTED</div><div class="ab-detail" id="bannerDetail">—</div></div><button class="ab-close" onclick="closeBanner()">✕</button></div>
+  <div class="stats-row gap14" id="histStats">
+    <div class="stat"><div class="stat-stripe blue"></div><div class="stat-ic si-blue"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#4361EE" stroke-width="1.7"><rect x="2" y="2" width="16" height="16" rx="2"/></svg></div><div><div class="stat-n" id="sTotal">0</div><div class="stat-l">Total</div></div></div>
+    <div class="stat"><div class="stat-stripe red"></div><div class="stat-ic si-red"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#DC2626" stroke-width="1.7"><path d="M10 2L2 17h16L10 2z"/></svg></div><div><div class="stat-n" id="sThreat">0</div><div class="stat-l">Threats</div></div></div>
+    <div class="stat"><div class="stat-stripe green"></div><div class="stat-ic si-green"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#059669" stroke-width="1.7"><polyline points="4,10 8,14 16,6"/></svg></div><div><div class="stat-n" id="sAvg">—</div><div class="stat-l">Avg Score</div></div></div>
+    <div class="stat"><div class="stat-stripe amber"></div><div class="stat-ic si-amber"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#D97706" stroke-width="1.7"><circle cx="10" cy="10" r="7.5"/></svg></div><div><div class="stat-n" id="sRate">0%</div><div class="stat-l">Threat Rate</div></div></div>
+  </div>
+  <div class="card">
+    <div class="card-hd" style="padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between">
+      <span class="card-title">COMPLETE ANALYSIS LOG</span>
+      <button onclick="fetchHistory()" style="font-size:10px;padding:4px 10px;border-radius:6px;border:1px solid var(--line2);background:none;color:var(--t3);cursor:pointer;font-weight:600">↻ Refresh</button>
+    </div>
+    <div class="htable" id="histTable"><div class="empty" style="padding:32px">Loading...</div></div>
+  </div>
+</main>
+</div>
+<script src="/config.js"></script><script src="/app.js"></script>
+<script>window.PAGE='history'; initPage();</script>
+</body>
+</html>
