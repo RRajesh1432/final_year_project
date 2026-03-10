@@ -9,4 +9,4 @@
  * STEP 3: Deploy the /frontend folder to Vercel.
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
-window.BACKEND_URL = '';   // ← paste your Railway URL here, e.g. 'https://pft-ast.up.railway.app'
+window.BACKEND_URL = 'https://huggingface.co/spaces/rajeshragi/project';   // ← paste your Railway URL here, e.g. 'https://pft-ast.up.railway.app'
