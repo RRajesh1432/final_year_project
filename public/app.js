@@ -226,9 +226,38 @@ async function unsub() {
 }
 
 function updateSubUI() {
+  // Old UI (kept for compatibility)
   const btn=document.getElementById('pushBtn'), st=document.getElementById('pushSt');
-  if (btn) { btn.textContent = _subbed ? '🔕 Disable Push Notifications' : '🔔 Enable Push Notifications'; btn.className = 'push-btn'+(_subbed?' active':''); }
-  if (st)  { st.textContent = _subbed ? '✓ Push enabled — you will receive threat alerts on this device' : 'Not subscribed — tap above to enable'; st.className = 'push-st'+(_subbed?' on':''); }
+  if (btn) {
+    btn.textContent = _subbed ? '🔕 Disable Push' : '🔔 Enable Push Notifications';
+    btn.className = (_subbed ? 'btn-push-main active' : 'btn-push-main');
+  }
+  if (st) {
+    st.textContent = _subbed
+      ? '✓ Subscribed on this device — alerts will arrive even when screen is off'
+      : 'Not yet subscribed on this device';
+    st.style.color = _subbed ? '#059669' : '#64748B';
+  }
+
+  // New push setup card UI
+  const badge = document.getElementById('pushBadge');
+  const info  = document.getElementById('pscActiveInfo');
+  const step1 = document.getElementById('step1');
+  const step2 = document.getElementById('step2');
+  const step3 = document.getElementById('step3');
+
+  if (badge) {
+    badge.textContent   = _subbed ? 'ACTIVE ✓' : 'NOT SET UP';
+    badge.style.background = _subbed ? '#D1FAE5' : '#FEE2E2';
+    badge.style.color   = _subbed ? '#059669' : '#DC2626';
+  }
+  if (info)  info.style.display  = _subbed ? 'block' : 'none';
+  if (step1) step1.style.opacity = '1';
+  if (step2) step2.style.opacity = _subbed ? '1' : '0.4';
+  if (step3) step3.style.opacity = _subbed ? '1' : '0.4';
+
+  const devEl = document.getElementById('paiDeviceStatus');
+  if (devEl) devEl.textContent = _subbed ? 'Subscribed ✓' : 'Not subscribed';
 }
 
 function urlB64ToUint8Array(b) {

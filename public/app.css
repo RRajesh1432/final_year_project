@@ -840,3 +840,112 @@ body {
   font-size: 9px; font-weight: 700; color: var(--red);
   font-family: 'IBM Plex Mono',monospace;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   PUSH SETUP CARD — Alerts Page
+═══════════════════════════════════════════════════════════ */
+.push-setup-card {
+  background: var(--card);
+  border: 1.5px solid #C7D2FE;
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 20px rgba(67,97,238,.08);
+}
+.psc-header {
+  display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px;
+}
+.psc-icon   { font-size: 28px; line-height: 1; }
+.psc-title  { font-size: 16px; font-weight: 800; color: var(--t1); margin-bottom: 3px; }
+.psc-sub    { font-size: 11px; color: var(--t3); line-height: 1.5; }
+.psc-badge  {
+  margin-left: auto; white-space: nowrap;
+  font-size: 10px; font-weight: 800; letter-spacing: .8px;
+  padding: 5px 12px; border-radius: 20px;
+  background: #FEE2E2; color: #DC2626;
+}
+
+/* Steps */
+.psc-steps { display: flex; flex-direction: column; gap: 0; }
+.psc-step  {
+  display: flex; gap: 14px; padding: 14px 0;
+  border-bottom: 1px solid var(--line2);
+  transition: opacity .3s;
+}
+.psc-step:last-child { border-bottom: none; }
+.psc-step-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #EEF2FF; color: var(--blue);
+  font-size: 13px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 2px;
+}
+.psc-step-body   { flex: 1; }
+.psc-step-title  { font-size: 13px; font-weight: 700; color: var(--t1); margin-bottom: 4px; }
+.psc-step-desc   { font-size: 11px; color: var(--t3); line-height: 1.5; margin-bottom: 10px; }
+
+/* Push buttons */
+.btn-push-main {
+  display: block; width: 100%;
+  background: linear-gradient(135deg, #4361EE, #3A0CA3);
+  color: #fff; border: none; border-radius: 10px;
+  padding: 12px 20px; font-size: 13px; font-weight: 700;
+  cursor: pointer; box-shadow: 0 4px 12px rgba(67,97,238,.3);
+  transition: all .2s; margin-bottom: 8px;
+}
+.btn-push-main:hover  { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(67,97,238,.4); }
+.btn-push-main.active { background: linear-gradient(135deg, #059669, #047857); }
+
+.btn-test-push {
+  display: block; width: 100%;
+  background: linear-gradient(135deg, #DC2626, #B91C1C);
+  color: #fff; border: none; border-radius: 10px;
+  padding: 12px 20px; font-size: 13px; font-weight: 700;
+  cursor: pointer; box-shadow: 0 4px 12px rgba(220,38,38,.3);
+  transition: all .2s; margin-bottom: 8px;
+  animation: pulse-red 2s infinite;
+}
+.btn-test-push:hover    { transform: translateY(-1px); }
+.btn-test-push:disabled { opacity: .6; animation: none; cursor: wait; }
+
+@keyframes pulse-red {
+  0%, 100% { box-shadow: 0 4px 12px rgba(220,38,38,.3); }
+  50%       { box-shadow: 0 4px 20px rgba(220,38,38,.6); }
+}
+
+.test-push-result {
+  display: none;
+  font-size: 11px; font-weight: 600; padding: 8px 12px;
+  border-radius: 7px; background: #F0FDF4;
+  border: 1px solid #A7F3D0;
+}
+.push-status {
+  font-size: 11px; color: var(--t3); margin-top: 4px; font-weight: 500;
+}
+
+/* Active device info */
+.psc-active-info {
+  background: #F0FDF4; border: 1px solid #A7F3D0;
+  border-radius: 8px; padding: 10px 14px; margin-top: 8px;
+}
+.pai-row {
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: var(--t3); padding: 3px 0;
+}
+.pai-row span:last-child { font-weight: 600; color: var(--t1); }
+
+/* iOS note */
+.ios-note {
+  background: #FFF7ED; border: 1px solid #FED7AA;
+  border-radius: 8px; padding: 14px; margin-top: 12px;
+  font-size: 12px; color: #7C2D12;
+}
+
+/* PWA row */
+.pwa-row  { margin-top: 12px; }
+.btn-pwa  {
+  background: #F8FAFF; border: 1.5px solid #C7D2FE;
+  color: var(--blue); border-radius: 8px;
+  padding: 10px 16px; font-size: 12px; font-weight: 700;
+  cursor: pointer; width: 100%;
+}
