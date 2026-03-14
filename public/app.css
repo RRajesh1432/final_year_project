@@ -799,3 +799,44 @@ body {
   border: none; border-radius: 6px; padding: 5px 12px;
   font-size: 11px; font-weight: 600; cursor: pointer;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   PAPER METRICS BAR — Dashboard top strip
+═══════════════════════════════════════════════════════════ */
+.paper-metrics-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0;
+  background: linear-gradient(135deg, #1E1B4B 0%, #312E81 100%);
+  border-radius: 12px; padding: 12px 20px; margin-bottom: 16px;
+  box-shadow: 0 4px 16px rgba(67,97,238,.2);
+}
+.pm-item   { display: flex; flex-direction: column; align-items: center; padding: 0 16px; }
+.pm-val    { font-size: 16px; font-weight: 800; color: #A5B4FC; font-family: 'IBM Plex Mono',monospace; }
+.pm-lbl    { font-size: 9px; font-weight: 600; color: rgba(255,255,255,.5); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+.pm-sep    { width: 1px; height: 32px; background: rgba(255,255,255,.15); }
+.pm-arch .pm-val { font-size: 11px; }
+@media(max-width:768px) {
+  .paper-metrics-bar { gap: 8px; padding: 10px 14px; }
+  .pm-item { padding: 4px 10px; }
+  .pm-sep  { display: none; }
+  .pm-arch { display: none; }
+}
+
+/* Model fine-tune status chip in sidebar/topbar */
+.model-status-chip {
+  font-size: 9px; font-weight: 700; letter-spacing: .8px;
+  padding: 3px 8px; border-radius: 4px; text-transform: uppercase;
+}
+.model-status-chip.finetuned { background: #D1FAE5; color: #059669; }
+.model-status-chip.base      { background: #FEF3C7; color: #92400E; }
+
+/* C_t threat class bars — flag when exceeds τ */
+.thr-item.flagged .thr-bar-fill { box-shadow: 0 0 6px rgba(220,38,38,.5); }
+.thr-bar-fill.high   { background: linear-gradient(90deg,#DC2626,#EF4444); }
+.thr-bar-fill.medium { background: linear-gradient(90deg,#D97706,#F59E0B); }
+.thr-bar-fill.low    { background: linear-gradient(90deg,#059669,#10B981); }
+
+/* Paper-aligned τ marker label */
+.tau-marker-label {
+  font-size: 9px; font-weight: 700; color: var(--red);
+  font-family: 'IBM Plex Mono',monospace;
+}
