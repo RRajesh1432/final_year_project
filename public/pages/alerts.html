@@ -35,7 +35,98 @@
 <main class="main">
   <div class="alert-banner" id="alertBanner"><span class="ab-icon">⚠️</span><div class="ab-body"><div class="ab-title">THREAT DETECTED</div><div class="ab-detail" id="bannerDetail">—</div></div><button class="ab-close" onclick="closeBanner()">✕</button></div>
 
-  <!-- ── PUSH SETUP CARD ───────────────────────────────── -->
+  <!-- ── NTFY SETUP CARD (PRIMARY) ──────────────────────── -->
+  <div class="ntfy-setup-card">
+    <div class="ntfy-header">
+      <div class="ntfy-logo">📳</div>
+      <div>
+        <div class="ntfy-title">ntfy — Real-Time Phone Alerts</div>
+        <div class="ntfy-sub">Instant message to your phone even when <b>screen is OFF</b> and app is closed — like SMS</div>
+      </div>
+      <div class="ntfy-badge" id="ntfyBadge">NOT SET UP</div>
+    </div>
+
+    <!-- Step 1 — Install app -->
+    <div class="ntfy-step">
+      <div class="ntfy-step-num done">1</div>
+      <div class="ntfy-step-body">
+        <div class="ntfy-step-title">Install ntfy app on your phone</div>
+        <div class="ntfy-step-desc">Free app — no account, no login needed</div>
+        <div class="ntfy-dl-row">
+          <a class="ntfy-dl-btn android" href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank">▶ Android (Play Store)</a>
+          <a class="ntfy-dl-btn ios"     href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank"> iOS (App Store)</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 — Enter topic -->
+    <div class="ntfy-step">
+      <div class="ntfy-step-num" id="ntfyStep2Num">2</div>
+      <div class="ntfy-step-body">
+        <div class="ntfy-step-title">Enter your topic name</div>
+        <div class="ntfy-step-desc">
+          Open ntfy app → tap <b>+</b> → type a unique topic name → Subscribe.<br>
+          Then type the same topic name below:
+        </div>
+        <div class="ntfy-input-row">
+          <span class="ntfy-server-prefix">ntfy.sh /</span>
+          <input type="text" id="ntfyTopicInput" class="ntfy-topic-input"
+                 placeholder="e.g. pftast-rajesh-2024"
+                 autocomplete="off" autocorrect="off" spellcheck="false">
+          <button class="ntfy-save-btn" onclick="saveNtfyTopic()">Save</button>
+        </div>
+        <div class="ntfy-save-result" id="ntfySaveResult"></div>
+        <div class="ntfy-current" id="ntfyCurrent" style="display:none">
+          Current topic: <strong id="ntfyCurrentTopic"></strong>
+          <button onclick="changeNtfyTopic()" style="font-size:10px;color:var(--blue);background:none;border:none;cursor:pointer;margin-left:6px">Change</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3 — Test -->
+    <div class="ntfy-step">
+      <div class="ntfy-step-num" id="ntfyStep3Num">3</div>
+      <div class="ntfy-step-body">
+        <div class="ntfy-step-title">Send test notification</div>
+        <div class="ntfy-step-desc">Tap below — your phone should vibrate within 3 seconds</div>
+        <button class="ntfy-test-btn" id="ntfyTestBtn" onclick="testNtfy()">
+          📳 Send Test to My Phone Now
+        </button>
+        <div class="ntfy-test-result" id="ntfyTestResult"></div>
+      </div>
+    </div>
+
+    <!-- Step 4 — Done -->
+    <div class="ntfy-step ntfy-step-done" id="ntfyDoneStep" style="display:none">
+      <div class="ntfy-step-num done">✓</div>
+      <div class="ntfy-step-body">
+        <div class="ntfy-step-title" style="color:#059669">You are protected!</div>
+        <div class="ntfy-step-desc">
+          Every threat detected sends an instant message to your phone.<br>
+          Works 24/7 even when screen is off, phone is locked, or you are not using the app.
+        </div>
+        <div class="ntfy-active-box">
+          <div class="ntfy-active-row"><span>📳 Topic:</span><strong id="ntfyActiveTopic">—</strong></div>
+          <div class="ntfy-active-row"><span>📡 Server:</span><strong>ntfy.sh (free)</strong></div>
+          <div class="ntfy-active-row"><span>⚡ Priority:</span><strong>URGENT (breaks DND)</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PUSH SETUP (secondary) ──────────────────────────── -->
+  <details class="push-details">
+    <summary class="push-summary">🔔 Also enable Web Push (browser notifications) — optional</summary>
+    <div class="push-inner">
+      <div class="push-desc">Browser push works when the app tab is open. ntfy above is more reliable.</div>
+      <button class="btn-push-main" id="btnPush" onclick="togglePush()">🔔 Enable Browser Push</button>
+      <div class="push-status" id="pushSt">Not subscribed</div>
+      <button class="btn-test-push" id="btnTestPush" onclick="sendTestPush()" style="margin-top:8px">📳 Test Browser Push</button>
+      <div class="test-push-result" id="testPushResult"></div>
+    </div>
+  </details>
+
+  <!-- ── LIVE THREAT ALERTS ────────────────────────────── -->
   <div class="push-setup-card" id="pushSetupCard">
     <div class="psc-header">
       <div class="psc-icon">🔔</div>

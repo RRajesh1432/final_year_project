@@ -669,6 +669,99 @@ function stopWave() { cancelAnimationFrame(_raf); if(_actx){_actx.close();_actx=
 function setRecLbl(m){const e=document.getElementById('recVizLbl');if(e)e.textContent=m;}
 function pad(n){return String(n).padStart(2,'0');}
 
+
+// ═══════════════════════════════════════
+//  NTFY.SH SETUP & NOTIFICATIONS
+// ═══════════════════════════════════════
+async function initNtfy() {
+  try {
+    const cfg = await apiFetch('/api/ntfy-config');
+    if (cfg.topic) {
+      setNtfyConfigured(cfg.topic);
+    }
+  } catch(_) {}
+}
+
+function setNtfyConfigured(topic) {
+  // Badge
+  const badge = document.getElementById('ntfyBadge');
+  if (badge) { badge.textContent='ACTIVE ✓'; badge.style.background='#D1FAE5'; badge.style.color='#059669'; }
+  // Current topic display
+  const cur = document.getElementById('ntfyCurrent');
+  const curTopic = document.getElementById('ntfyCurrentTopic');
+  const input = document.getElementById('ntfyTopicInput');
+  const doneStep = document.getElementById('ntfyDoneStep');
+  const activeTopic = document.getElementById('ntfyActiveTopic');
+  if (cur) cur.style.display = 'block';
+  if (curTopic) curTopic.textContent = topic;
+  if (input) { input.value = topic; input.style.display = 'none'; }
+  if (doneStep) doneStep.style.display = 'flex';
+  if (activeTopic) activeTopic.textContent = topic;
+  // Step numbers
+  const s2 = document.getElementById('ntfyStep2Num');
+  const s3 = document.getElementById('ntfyStep3Num');
+  if (s2) { s2.textContent='✓'; s2.classList.add('done'); }
+  if (s3) { s3.textContent='✓'; s3.classList.add('done'); }
+}
+
+function changeNtfyTopic() {
+  const input = document.getElementById('ntfyTopicInput');
+  const cur   = document.getElementById('ntfyCurrent');
+  if (input) input.style.display = '';
+  if (cur)   cur.style.display   = 'none';
+}
+
+async function saveNtfyTopic() {
+  const input  = document.getElementById('ntfyTopicInput');
+  const result = document.getElementById('ntfySaveResult');
+  const btn    = document.querySelector('.ntfy-save-btn');
+  const topic  = (input?.value || '').trim();
+
+  if (!topic) { showNtfyResult(result, '✗ Enter a topic name first', false); return; }
+  if (topic.length < 3) { showNtfyResult(result, '✗ Topic must be at least 3 characters', false); return; }
+  if (!/^[a-zA-Z0-9_\-]+$/.test(topic)) { showNtfyResult(result, '✗ Only letters, numbers, - and _ allowed', false); return; }
+
+  if (btn) { btn.textContent='Saving…'; btn.disabled=true; }
+  try {
+    const data = await apiPost('/api/ntfy-config', {topic});
+    if (data.ok) {
+      showNtfyResult(result, `✓ Topic saved! Now open ntfy app → subscribe to "${topic}"`, true);
+      setNtfyConfigured(topic);
+    } else {
+      showNtfyResult(result, `✗ ${data.error}`, false);
+    }
+  } catch(e) { showNtfyResult(result, `✗ Error: ${e.message}`, false); }
+  finally { if (btn) { btn.textContent='Save'; btn.disabled=false; } }
+}
+
+async function testNtfy() {
+  const btn    = document.getElementById('ntfyTestBtn');
+  const result = document.getElementById('ntfyTestResult');
+  if (btn) { btn.textContent='⏳ Sending…'; btn.disabled=true; }
+  result.style.display='none';
+  try {
+    const data = await fetch(API+'/api/ntfy-test', {method:'POST'}).then(r=>r.json());
+    if (data.ok) {
+      showNtfyResult(result, `✅ ${data.message}`, true);
+      // Show done step
+      const done = document.getElementById('ntfyDoneStep');
+      if (done) done.style.display='flex';
+    } else {
+      showNtfyResult(result, `✗ ${data.error}`, false);
+    }
+  } catch(e) { showNtfyResult(result, `✗ ${e.message}`, false); }
+  finally { if (btn) { btn.textContent='📳 Send Test to My Phone Now'; btn.disabled=false; } }
+}
+
+function showNtfyResult(el, msg, ok) {
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.color   = ok ? '#059669' : '#DC2626';
+  el.style.background = ok ? '#F0FDF4' : '#FEF2F2';
+  el.style.border  = `1px solid ${ok ? '#A7F3D0' : '#FECACA'}`;
+}
+
 // ═══════════════════════════════════════
 //  HISTORY — TABLE + MODAL
 // ═══════════════════════════════════════
@@ -825,6 +918,7 @@ function renderHistModalContent(data, id) {
 // ═══════════════════════════════════════
 async function initAlerts() {
   checkSub();
+  initNtfy();
   try {
     const rows=await apiFetch('/api/alerts');
     renderHistAlerts(rows);
