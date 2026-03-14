@@ -79,19 +79,61 @@
 
       <!-- Record pane -->
       <div class="tab-pane" id="pane-record">
-        <div class="rec-wrap">
-          <div class="rec-viz"><canvas id="recC"></canvas><div class="rec-lbl" id="recVizLbl">Ready to record</div></div>
-          <div class="rec-timer" id="recTimer">00:00</div>
-          <div class="rec-btns">
-            <button class="btn-rec" id="btnRec" onclick="toggleRec()">
-              <span class="rec-dot"></span><span id="recBtnLbl">Record</span>
-            </button>
-            <button class="btn-analyze-r" id="btnAnalyzeRec" onclick="analyzeRec()" disabled>
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2"><polygon points="2,1 12,6.5 2,12"/></svg>
-              Analyze
-            </button>
+        <!-- Mode toggle -->
+        <div class="rec-mode-tabs">
+          <button class="rec-mode-btn on" id="modeSnap" onclick="switchRecMode('snap')">📸 Single Shot</button>
+          <button class="rec-mode-btn" id="modeLive"  onclick="switchRecMode('live')">🔴 Continuous Live</button>
+        </div>
+
+        <!-- Single shot pane -->
+        <div id="recModeSnap">
+          <div class="rec-wrap">
+            <div class="rec-viz"><canvas id="recC"></canvas><div class="rec-lbl" id="recVizLbl">Ready to record</div></div>
+            <div class="rec-timer" id="recTimer">00:00</div>
+            <div class="rec-btns">
+              <button class="btn-rec" id="btnRec" onclick="toggleRec()">
+                <span class="rec-dot"></span><span id="recBtnLbl">Record</span>
+              </button>
+              <button class="btn-analyze-r" id="btnAnalyzeRec" onclick="analyzeRec()" disabled>
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2"><polygon points="2,1 12,6.5 2,12"/></svg>
+                Analyze
+              </button>
+            </div>
+            <p style="font-size:10px;color:var(--t4);text-align:center;margin-top:2px">Max 60s · Analyze manually after recording stops</p>
           </div>
-          <p style="font-size:10px;color:var(--t4);text-align:center;margin-top:2px">Max 60s · Results appear below and sync to all dashboards</p>
+        </div>
+
+        <!-- Continuous live pane -->
+        <div id="recModeLive" style="display:none">
+          <div class="rec-wrap">
+            <div class="rec-viz"><canvas id="recC"></canvas><div class="rec-lbl" id="recVizLbl">Ready for live analysis</div></div>
+            <div class="rec-timer" id="recTimer">00:00</div>
+
+            <!-- Live status badge -->
+            <div class="live-status-badge" id="liveStatusBadge" style="display:none">
+              <span class="live-dot"></span>
+              <span id="liveChunkLabel">Starting...</span>
+            </div>
+
+            <div style="display:flex;justify-content:center;margin:10px 0">
+              <button class="btn-live-rec" id="btnLiveRec" onclick="startLiveRec()">
+                🔴 Start Live Analysis
+              </button>
+            </div>
+
+            <p style="font-size:10px;color:var(--t4);text-align:center">
+              Splits audio into <b>10-second chunks</b> · Analyzes each automatically · Results stream below · Threat → instant notification
+            </p>
+
+            <!-- Live chunk feed -->
+            <div class="live-chunk-hdr">
+              <span>Live Analysis Stream</span>
+              <span id="liveChunkLabel" style="font-size:10px;color:var(--t3)"></span>
+            </div>
+            <div class="live-chunk-feed" id="liveChunkFeed">
+              <div class="empty" style="padding:16px;font-size:11px">Chunks will appear here as they are analyzed…</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -163,16 +205,32 @@
 
 <div class="loader" id="loader"><div class="loader-box"><div class="sonar"><div class="s-ring"></div><div class="s-ring"></div><div class="s-ring"></div><div class="s-core"></div></div><div class="loader-title">Running PFT-AST Inference</div><div class="loader-msg" id="loaderMsg">Classifying 527 AudioSet classes...</div></div></div>
 
+
+<!-- History modal (reused on analyze page too) -->
+<div class="hist-modal" id="histModal" onclick="if(event.target===this)closeHistoryModal()">
+  <div class="hist-modal-inner">
+    <div class="hist-modal-topbar">
+      <div style="font-size:13px;font-weight:700;color:var(--t1)">Full Analysis Report</div>
+      <button class="hist-modal-close" onclick="closeHistoryModal()">✕ Close</button>
+    </div>
+    <div class="hist-modal-body" id="histModalBody"></div>
+  </div>
+</div>
 <script src="/config.js"></script>
 <script src="/app.js"></script>
 <script>
 window.PAGE = 'analyze';
-// Override showResult to also show full result section
+function switchRecMode(mode) {
+  document.getElementById('recModeSnap').style.display = mode==='snap' ? '' : 'none';
+  document.getElementById('recModeLive').style.display = mode==='live' ? '' : 'none';
+  document.getElementById('modeSnap').classList.toggle('on', mode==='snap');
+  document.getElementById('modeLive').classList.toggle('on', mode==='live');
+  if (mode==='live' && typeof stopLiveRec === 'function') stopLiveRec();
+}
 const _origShow = showResult;
 window.showResult = function(data) {
   _origShow(data);
   document.getElementById('fullResult').style.display = 'block';
-  // Render images in result section
   renderImg2('resSpec',  data.spectrogram);
   renderImg2('resWave',  data.waveform_img);
   renderThrDetail2(data.threat_detail);

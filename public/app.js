@@ -1,14 +1,11 @@
 'use strict';
-// PFT-AST v4.1 · Unified Frontend Script
-// All 4 pages. Set window.BACKEND_URL in config.js
+// PFT-AST v4.5 — Unified Frontend
+// Features: history modal, continuous live recording, device+location notifications
 
-const API      = window.BACKEND_URL || '';
-const THREATS  = ['gunshot','explosion','glass','scream','siren'];
-const TAU      = 0.75;
-const COLORS   = {
-  blue: '#4361EE', green: '#059669', red: '#DC2626',
-  amber: '#D97706', sky: '#0284C7', violet: '#7C3AED',
-};
+const API     = window.BACKEND_URL || '';
+const THREATS = ['gunshot','explosion','glass','scream','siren'];
+const TAU     = 0.35;
+const COLORS  = { blue:'#4361EE',green:'#059669',red:'#DC2626',amber:'#D97706',sky:'#0284C7',violet:'#7C3AED' };
 
 let _chart=null, _socket=null, _swReg=null;
 let _mediaRec=null, _chunks=[], _blob=null;
@@ -16,6 +13,13 @@ let _timerInt=null, _recSecs=0;
 let _actx=null, _analyser=null, _raf=null;
 let _feedCt=0, _alertCt=0, _subbed=false, _deferPWA=null;
 let _modelReady=false, _modelPollInt=null;
+
+// Device & location
+let _deviceId   = null;
+let _userLocation = null;  // { lat, lng, address }
+let _liveChunkN = 0;       // chunk counter for continuous recording
+let _liveActive = false;   // is continuous recording running
+let _liveStream = null;    // MediaStream reference for continuous
 
 // ═══════════════════════════════════════
 //  BOOT
@@ -26,6 +30,8 @@ function initPage() {
   registerSW();
   fetchStats();
   checkModelStatus();
+  initDeviceInfo();
+  requestNotifPermission();
   const P = window.PAGE;
   if (P==='dashboard') initDash();
   if (P==='analyze')   initAnalyze();
@@ -34,7 +40,72 @@ function initPage() {
 }
 
 // ═══════════════════════════════════════
-//  MODEL STATUS — poll until ready
+//  DEVICE ID & LOCATION
+// ═══════════════════════════════════════
+function initDeviceInfo() {
+  // Device ID: persistent UUID stored in localStorage
+  _deviceId = localStorage.getItem('pft_device_id');
+  if (!_deviceId) {
+    _deviceId = 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8);
+    localStorage.setItem('pft_device_id', _deviceId);
+  }
+  // Try to get location (won't block UI — just enriches notifications)
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        _userLocation = {
+          lat: pos.coords.latitude.toFixed(5),
+          lng: pos.coords.longitude.toFixed(5),
+          accuracy: Math.round(pos.coords.accuracy)
+        };
+        console.log('[location] Acquired:', _userLocation);
+      },
+      err => { console.log('[location] Unavailable:', err.message); },
+      { timeout: 8000, maximumAge: 300000 }
+    );
+  }
+}
+
+function getLocationString() {
+  if (!_userLocation) return '';
+  return `${_userLocation.lat},${_userLocation.lng}`;
+}
+
+// ═══════════════════════════════════════
+//  BROWSER NOTIFICATIONS
+// ═══════════════════════════════════════
+async function requestNotifPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    // Delay asking so user has seen the page first
+    setTimeout(() => Notification.requestPermission(), 3000);
+  }
+}
+
+function showBrowserNotif(data) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const top   = data.multi_threat?.[0]?.label || data.top_class || 'Unknown';
+  const pct   = (data.threat_score * 100).toFixed(1);
+  const loc   = _userLocation ? `📍 ${_userLocation.lat}, ${_userLocation.lng}` : '📍 Location unavailable';
+  const did   = _deviceId ? `🖥 ${_deviceId.slice(0,12)}` : '';
+  const chunk = data.chunk_n ? ` · Chunk #${data.chunk_n}` : '';
+
+  const n = new Notification(`⚠ THREAT DETECTED — ${top.toUpperCase()}`, {
+    body: `Score: ${pct}%  ·  ${data.source || 'upload'}\n${loc}\n${did}${chunk}`,
+    icon: '/icons/icon-192.png',
+    badge:'/icons/badge-72.png',
+    tag:  'pft-threat',
+    renotify: true,
+    requireInteraction: true,
+    vibrate: [200, 100, 200, 100, 400],
+  });
+  n.onclick = () => { window.focus(); n.close(); };
+  // Auto-close after 15s
+  setTimeout(() => n.close(), 15000);
+}
+
+// ═══════════════════════════════════════
+//  MODEL STATUS POLLING
 // ═══════════════════════════════════════
 async function checkModelStatus() {
   if (!API) return;
@@ -59,7 +130,7 @@ async function checkModelStatus() {
         }
       } catch(_) {}
     }, 8000);
-  } catch(_) { _modelReady = true; } // if no API, allow offline use
+  } catch(_) { _modelReady = true; }
 }
 
 function showModelBanner(state, detail) {
@@ -71,18 +142,17 @@ function showModelBanner(state, detail) {
     const main = document.querySelector('.main');
     if (main) main.insertBefore(el, main.firstChild);
   }
-  const styles = {
-    loading: { bg:'#EEF2FF', border:'#C7D2FE', color:'#4361EE', icon:'⏳',
-      title:'AI Model Loading…',
-      msg:'Downloading AST model (~1-2 min on first start). History &amp; stats work now. Analyze will unlock automatically.' },
-    ready:   { bg:'#D1FAE5', border:'#A7F3D0', color:'#059669', icon:'✅',
+  const cfg = {
+    loading:{ bg:'#EEF2FF',border:'#C7D2FE',color:'#4361EE',icon:'⏳',
+      title:'AI Model Loading…', msg:'Downloading AST model (~1-2 min). History &amp; stats work now.' },
+    ready:  { bg:'#D1FAE5',border:'#A7F3D0',color:'#059669',icon:'✅',
       title:'Model Ready', msg:'PFT-AST is ready — you can now analyze audio.' },
-    error:   { bg:'#FEE2E2', border:'#FECACA', color:'#DC2626', icon:'❌',
-      title:'Model Failed', msg: detail || 'Check HuggingFace Space logs for details.' },
+    error:  { bg:'#FEE2E2',border:'#FECACA',color:'#DC2626',icon:'❌',
+      title:'Model Failed', msg: detail || 'Check HuggingFace Space logs.' },
   };
-  const s = styles[state] || styles.error;
+  const s = cfg[state] || cfg.error;
   el.style.background = s.bg; el.style.borderColor = s.border; el.style.color = s.color;
-  el.innerHTML = `<span style="font-size:20px;${state==='loading'?'animation:blink 1s infinite':''}">${s.icon}</span>
+  el.innerHTML = `<span style="font-size:20px">${s.icon}</span>
     <div><div style="font-size:13px;font-weight:700;margin-bottom:2px">${s.title}</div>
     <div style="font-size:10px;font-weight:500;color:#64748B">${s.msg}</div></div>`;
 }
@@ -135,34 +205,34 @@ async function checkSub() {
 async function togglePush() { _subbed ? await unsub() : await doSub(); }
 
 async function doSub() {
-  if (!_swReg) return;
   try {
     const { key } = await apiFetch('/api/vapid-key');
-    if (!key) { setPushSt('Push not configured on server yet.'); return; }
+    if (!key) { alert('Push not configured on server.'); return; }
     const perm = await Notification.requestPermission();
-    if (perm!=='granted') { setPushSt('Notification permission denied.'); return; }
+    if (perm !== 'granted') { alert('Notification permission denied.'); return; }
     const sub = await _swReg.pushManager.subscribe({
-      userVisibleOnly: true, applicationServerKey: b64u8(key)
+      userVisibleOnly: true,
+      applicationServerKey: urlB64ToUint8Array(key),
     });
     await apiPost('/api/subscribe', sub.toJSON());
-    _subbed=true; updateSubUI();
-  } catch(e) { setPushSt('Error: '+e.message); }
+    _subbed = true; updateSubUI();
+  } catch(e) { alert('Push setup failed: '+e.message); }
 }
+
 async function unsub() {
-  const s = await _swReg?.pushManager.getSubscription().catch(()=>null);
-  if (s) { await apiPost('/api/unsubscribe',{endpoint:s.endpoint}); await s.unsubscribe(); }
-  _subbed=false; updateSubUI();
+  const sub = await _swReg.pushManager.getSubscription().catch(()=>null);
+  if (sub) { await sub.unsubscribe(); await apiPost('/api/unsubscribe', {endpoint:sub.endpoint}); }
+  _subbed = false; updateSubUI();
 }
+
 function updateSubUI() {
-  const b=document.getElementById('btnPush'), s=document.getElementById('pushSt');
-  if(!b) return;
-  if(_subbed) { b.textContent='Disable Notifications'; b.classList.add('sub'); if(s) s.textContent='✓ Push enabled on this device'; }
-  else        { b.textContent='Enable Push Notifications'; b.classList.remove('sub'); if(s) s.textContent='Not subscribed yet'; }
+  const btn=document.getElementById('pushBtn'), st=document.getElementById('pushSt');
+  if (btn) { btn.textContent = _subbed ? '🔕 Disable Push Notifications' : '🔔 Enable Push Notifications'; btn.className = 'push-btn'+(_subbed?' active':''); }
+  if (st)  { st.textContent = _subbed ? '✓ Push enabled — you will receive threat alerts on this device' : 'Not subscribed — tap above to enable'; st.className = 'push-st'+(_subbed?' on':''); }
 }
-function setPushSt(m) { const e=document.getElementById('pushSt'); if(e) e.textContent=m; }
-function b64u8(b64) {
-  const p='='.repeat((4-b64.length%4)%4);
-  const raw=atob((b64+p).replace(/-/g,'+').replace(/_/g,'/'));
+
+function urlB64ToUint8Array(b) {
+  const p = '='.repeat((4-b.length%4)%4), raw = atob((b+p).replace(/-/g,'+').replace(/_/g,'/'));
   return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
 }
 
@@ -186,12 +256,16 @@ function connectSocket() {
   });
   _socket.on('analysis_result', data => {
     updateStats(data.stats);
-    if (data.threat_detected) { bumpAlerts(); showBanner(data); setChip(true); }
-    else setChip(false);
+    if (data.threat_detected) {
+      bumpAlerts();
+      showBanner(data);
+      showBrowserNotif(data);   // Browser popup notification
+      setChip(true);
+    } else setChip(false);
     if (window.PAGE==='dashboard') { renderDash(data); addFeed(data); }
     if (window.PAGE==='alerts'&&data.threat_detected) prependLive(data);
     if (window.PAGE==='history') fetchHistory();
-    if (window.PAGE==='analyze') showResult(data);  // if submitted from this tab
+    if (window.PAGE==='analyze') showResult(data);
   });
 }
 function setConn(on) {
@@ -210,7 +284,12 @@ async function apiFetch(path) { return (await fetch(API+path)).json(); }
 async function apiPost(path,body) {
   return (await fetch(API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
 }
-async function apiPredict(fd) { return (await fetch(API+'/api/predict',{method:'POST',body:fd})).json(); }
+async function apiPredict(fd) {
+  // Attach device info to every prediction
+  fd.append('device_id', _deviceId || 'unknown');
+  fd.append('location', getLocationString());
+  return (await fetch(API+'/api/predict',{method:'POST',body:fd})).json();
+}
 
 // ═══════════════════════════════════════
 //  STATS
@@ -226,7 +305,6 @@ function updateStats(s) {
 //  UI HELPERS
 // ═══════════════════════════════════════
 function set(id,v) { const e=document.getElementById(id); if(e) e.textContent=v; }
-
 function setChip(danger) {
   const el=document.getElementById('statusChip');
   if(!el) return;
@@ -237,9 +315,11 @@ function showBanner(data) {
   const bar=document.getElementById('alertBanner'),det=document.getElementById('bannerDetail');
   if(!bar) return;
   const top=data.multi_threat?.[0]?.label||'Unknown';
-  if(det) det.textContent=`${top.toUpperCase()} · Score ${(data.threat_score*100).toFixed(1)}% · ${data.source}`;
+  const loc = _userLocation ? ` · 📍${_userLocation.lat},${_userLocation.lng}` : '';
+  const did = _deviceId ? ` · 🖥 ${_deviceId.slice(0,10)}` : '';
+  if(det) det.textContent=`${top.toUpperCase()} · Score ${(data.threat_score*100).toFixed(1)}% · ${data.source}${did}${loc}`;
   bar.classList.add('show');
-  setTimeout(()=>bar.classList.remove('show'),9000);
+  setTimeout(()=>bar.classList.remove('show'),10000);
 }
 function closeBanner() { document.getElementById('alertBanner')?.classList.remove('show'); }
 function bumpAlerts() {
@@ -261,7 +341,6 @@ function hideLoader() { document.getElementById('loader')?.classList.remove('on'
 //  DASHBOARD
 // ═══════════════════════════════════════
 function initDash() {}
-
 function renderDash(data) {
   drawGauge(data.threat_score, data.risk);
   renderImg('specImg','specEmpty', data.spectrogram);
@@ -272,7 +351,6 @@ function renderDash(data) {
   renderFrames(data.frames);
   renderMeta(data);
 }
-
 function addFeed(data) {
   _feedCt++;
   const list=document.getElementById('feedList'); if(!list) return;
@@ -294,7 +372,7 @@ function addFeed(data) {
 }
 
 // ═══════════════════════════════════════
-//  ANALYZE
+//  ANALYZE — UPLOAD
 // ═══════════════════════════════════════
 function initAnalyze() {
   const dz=document.getElementById('dropzone'), inp=document.getElementById('audioIn');
@@ -333,48 +411,39 @@ async function analyzeUpload() {
   } catch(e){alert('Error: '+e.message);}
   finally{hideLoader();}
 }
-async function analyzeRec() {
-  if(!_blob) return;
-  showLoader('Analyzing recording...');
-  const ext=_blob.type.includes('ogg')?'ogg':'webm';
-  const fd=new FormData(); fd.append('audio',new File([_blob],`rec.${ext}`,{type:_blob.type})); fd.append('source','record');
-  try {
-    const data=await apiPredict(fd);
-    if(data.error){alert(data.error);return;}
-    showResult(data);
-  } catch(e){alert('Error: '+e.message);}
-  finally{hideLoader();}
-}
 
+// ═══════════════════════════════════════
+//  ANALYZE — SHOW RESULT
+// ═══════════════════════════════════════
 function showResult(data) {
   const card=document.getElementById('resultCard');
   if(!card) return;
   card.style.display='block';
-  // Score + risk
   set('resPct', (data.threat_score*100).toFixed(1)+'%');
   const rt=document.getElementById('resRisk');
   if(rt) { const r=data.risk||'SAFE'; rt.textContent=r; rt.className='rtag r-'+r.toLowerCase(); }
   drawMiniGauge('resGauge', data.threat_score);
-  // Images
   renderImg2('resSpec', data.spectrogram);
   renderImg2('resWave', data.waveform_img);
-  // Classes
   renderClasses(data.all_sounds,'resClasses',10);
-  // Threat detail
   renderThrDetail2(data.threat_detail);
-  // Frames
   renderFrames2(data.frames);
-  // Meta
   renderMeta2(data);
   card.scrollIntoView({behavior:'smooth'});
   if(data.threat_detected) showBanner(data);
 }
 
 // ═══════════════════════════════════════
-//  RECORDING
+//  RECORDING — SINGLE SHOT
 // ═══════════════════════════════════════
-function getMime() { return ['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4','audio/webm'].find(t=>MediaRecorder.isTypeSupported(t))||''; }
-async function toggleRec() { (_mediaRec?.state==='recording') ? stopRec() : await startRec(); }
+function getMime() {
+  return ['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4','audio/webm']
+    .find(t=>MediaRecorder.isTypeSupported(t))||'';
+}
+async function toggleRec() {
+  if (_liveActive) return stopLiveRec();
+  (_mediaRec?.state==='recording') ? stopRec() : await startRec();
+}
 async function startRec() {
   _chunks=[]; _blob=null;
   try {
@@ -410,6 +479,142 @@ function stopRec() {
   set('recBtnLbl','Record');
   document.getElementById('recTimer')?.classList.remove('on');
 }
+async function analyzeRec() {
+  if(!_blob) return;
+  showLoader('Analyzing recording...');
+  const ext=_blob.type.includes('ogg')?'ogg':'webm';
+  const fd=new FormData(); fd.append('audio',new File([_blob],`rec.${ext}`,{type:_blob.type})); fd.append('source','record');
+  try {
+    const data=await apiPredict(fd);
+    if(data.error){alert(data.error);return;}
+    showResult(data);
+  } catch(e){alert('Error: '+e.message);}
+  finally{hideLoader();}
+}
+
+// ═══════════════════════════════════════
+//  RECORDING — CONTINUOUS 10s CHUNKS
+// ═══════════════════════════════════════
+async function startLiveRec() {
+  try {
+    _liveStream = await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true}});
+  } catch(e) { alert('Mic access denied: '+e.message); return; }
+
+  // Set up waveform viz
+  _actx=new AudioContext();
+  _analyser=_actx.createAnalyser(); _analyser.fftSize=512;
+  _actx.createMediaStreamSource(_liveStream).connect(_analyser);
+  drawWave();
+
+  _liveActive = true;
+  _liveChunkN = 0;
+  _recSecs    = 0;
+
+  document.getElementById('btnLiveRec')?.classList.add('on');
+  document.getElementById('btnLiveRec').textContent = '⏹ Stop Live';
+  document.getElementById('liveStatusBadge').style.display = 'flex';
+  set('liveChunkLabel','Starting...');
+
+  // Clear previous live results
+  const feed = document.getElementById('liveChunkFeed');
+  if (feed) feed.innerHTML = '';
+
+  // Global timer
+  _timerInt = setInterval(() => {
+    _recSecs++;
+    const el = document.getElementById('recTimer');
+    if (el) { el.textContent=`${pad(_recSecs/60|0)}:${pad(_recSecs%60)}`; el.classList.add('on'); }
+  }, 1000);
+
+  // Start first chunk immediately
+  startNextChunk();
+}
+
+function startNextChunk() {
+  if (!_liveActive) return;
+  _liveChunkN++;
+  const chunkN = _liveChunkN;
+  const chunks = [];
+  const mime   = getMime();
+
+  set('liveChunkLabel', `● Analyzing chunk #${chunkN}...`);
+
+  const rec = new MediaRecorder(_liveStream, {mimeType: mime});
+  rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+  rec.onstop = async () => {
+    if (!_liveActive && chunkN > 1) return; // discard if stopped before first chunk
+    const blob = new Blob(chunks, {type: mime || 'audio/webm'});
+    if (blob.size < 1000) { if (_liveActive) startNextChunk(); return; } // too small, skip
+    addLiveChunkPending(chunkN);
+    try {
+      const ext = mime.includes('ogg') ? 'ogg' : 'webm';
+      const fd  = new FormData();
+      fd.append('audio', new File([blob], `live_chunk_${chunkN}.${ext}`, {type: mime}));
+      fd.append('source', 'live');
+      const data = await apiPredict(fd);
+      if (data.error) { updateLiveChunk(chunkN, null, data.error); }
+      else {
+        data.chunk_n = chunkN;
+        updateLiveChunk(chunkN, data);
+        // Also update the main result panel with latest chunk
+        showResult(data);
+        if (data.threat_detected) { showBrowserNotif(data); }
+      }
+    } catch(e) { updateLiveChunk(chunkN, null, e.message); }
+    // Start next chunk only AFTER this one's recording stops
+    if (_liveActive) startNextChunk();
+  };
+
+  rec.start();
+  // Stop this chunk after 10 seconds
+  setTimeout(() => { if (rec.state === 'recording') rec.stop(); }, 10000);
+}
+
+function stopLiveRec() {
+  _liveActive = false;
+  if (_liveStream) { _liveStream.getTracks().forEach(t => t.stop()); _liveStream = null; }
+  clearInterval(_timerInt);
+  stopWave();
+  document.getElementById('btnLiveRec')?.classList.remove('on');
+  if (document.getElementById('btnLiveRec')) document.getElementById('btnLiveRec').textContent = '🔴 Start Live Analysis';
+  document.getElementById('liveStatusBadge').style.display = 'none';
+  document.getElementById('recTimer')?.classList.remove('on');
+  set('liveChunkLabel', `Done — ${_liveChunkN} chunk${_liveChunkN===1?'':'s'} analyzed`);
+}
+
+function addLiveChunkPending(n) {
+  const feed = document.getElementById('liveChunkFeed'); if(!feed) return;
+  const el = document.createElement('div');
+  el.className = 'live-chunk-row pending';
+  el.id = `lc-${n}`;
+  el.innerHTML = `<div class="lc-n">#${n}</div><div class="lc-info"><div class="lc-label">Analyzing…</div><div class="lc-bar-bg"><div class="lc-bar" style="width:0%"></div></div></div><div class="lc-score">—</div>`;
+  feed.insertBefore(el, feed.firstChild);
+  // keep max 20 in feed
+  while (feed.children.length > 20) feed.removeChild(feed.lastChild);
+}
+
+function updateLiveChunk(n, data, err) {
+  const el = document.getElementById(`lc-${n}`); if (!el) return;
+  if (err || !data) {
+    el.className = 'live-chunk-row error';
+    el.querySelector('.lc-label').textContent = err || 'Error';
+    el.querySelector('.lc-score').textContent = '✗';
+    return;
+  }
+  const pct   = (data.threat_score * 100).toFixed(1);
+  const risk  = data.risk || 'SAFE';
+  const top   = data.all_sounds?.[0]?.label || '—';
+  const cls   = data.threat_detected ? 'threat' : (data.threat_score >= 0.2 ? 'medium' : 'safe');
+  el.className = `live-chunk-row ${cls}`;
+  el.querySelector('.lc-label').textContent = top;
+  el.querySelector('.lc-bar').style.width   = Math.min(data.threat_score * 100, 100) + '%';
+  el.querySelector('.lc-bar').className     = `lc-bar ${cls}`;
+  el.querySelector('.lc-score').innerHTML   = `<span class="rtag r-${risk.toLowerCase()}">${pct}%</span>`;
+}
+
+// ═══════════════════════════════════════
+//  RECORDING — WAVEFORM VIZ
+// ═══════════════════════════════════════
 function drawWave() {
   const c=document.getElementById('recC'); if(!c||!_analyser) return;
   c.width=c.offsetWidth*devicePixelRatio; c.height=76*devicePixelRatio;
@@ -430,9 +635,9 @@ function setRecLbl(m){const e=document.getElementById('recVizLbl');if(e)e.textCo
 function pad(n){return String(n).padStart(2,'0');}
 
 // ═══════════════════════════════════════
-//  HISTORY
+//  HISTORY — TABLE + MODAL
 // ═══════════════════════════════════════
-async function initHistory(){await fetchHistory();}
+async function initHistory(){ await fetchHistory(); }
 async function fetchHistory() {
   try {
     const [hist,stats]=await Promise.all([apiFetch('/api/history?limit=100'),apiFetch('/api/stats')]);
@@ -449,20 +654,135 @@ function renderHistStats(s) {
 }
 function renderHistTable(rows) {
   const el=document.getElementById('histTable'); if(!el) return;
-  if(!rows.length){el.innerHTML='<div class="empty" style="padding:32px">No analyses yet. Go to Analyze to submit your first audio.</div>';return;}
+  if(!rows.length){el.innerHTML='<div class="empty" style="padding:32px">No analyses yet.</div>';return;}
   const rTag=r=>`<span class="rtag r-${r.toLowerCase()}">${r}</span>`;
   const srcTag=s=>`<span class="s-tag s-${s}">${s}</span>`;
   el.innerHTML=`
-    <div class="h-hd"><div>#</div><div>Top Class</div><div>Score</div><div>Risk</div><div>Source</div><div>Timestamp</div></div>
+    <div class="h-hd"><div>#</div><div>Top Class</div><div>Score</div><div>Risk</div><div>Source</div><div>Timestamp</div><div>Action</div></div>
     ${rows.map(r=>`
-    <div class="h-row${r.threat?' thr':''}" onclick="location.href='/'">
+    <div class="h-row${r.threat?' thr':''}" style="cursor:pointer" onclick="openHistoryModal(${r.id})">
       <div class="h-id">${r.id}</div>
       <div class="h-cls">${r.top_class||'—'}</div>
       <div class="h-sc">${(r.score*100).toFixed(1)}%</div>
       <div>${rTag(r.risk)}</div>
       <div>${srcTag(r.source||'upload')}</div>
       <div class="h-time">${r.date||''} ${r.time||''}</div>
+      <div><button class="h-view-btn" onclick="event.stopPropagation();openHistoryModal(${r.id})">View Full ↗</button></div>
     </div>`).join('')}`;
+}
+
+// ── History Modal ─────────────────────────────────────────
+async function openHistoryModal(id) {
+  const modal = document.getElementById('histModal');
+  const body  = document.getElementById('histModalBody');
+  if (!modal || !body) return;
+
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  body.innerHTML = `<div style="text-align:center;padding:60px 20px">
+    <div class="sonar" style="margin:0 auto 16px"><div class="s-ring"></div><div class="s-ring"></div><div class="s-core"></div></div>
+    <div style="color:var(--t3);font-size:12px">Loading full analysis #${id}…</div>
+  </div>`;
+
+  try {
+    const data = await apiFetch(`/api/history/${id}`);
+    if (data.error) { body.innerHTML = `<div style="padding:40px;text-align:center;color:var(--red)">Error: ${data.error}</div>`; return; }
+    renderHistModalContent(data, id);
+  } catch(e) {
+    body.innerHTML = `<div style="padding:40px;text-align:center;color:var(--red)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function closeHistoryModal() {
+  document.getElementById('histModal')?.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function renderHistModalContent(data, id) {
+  const body = document.getElementById('histModalBody');
+  const risk  = data.risk || 'SAFE';
+  const pct   = (data.threat_score * 100).toFixed(1);
+  const isT   = data.threat_detected;
+  const loc   = data.location ? `📍 ${data.location}` : '📍 Location not recorded';
+  const did   = data.device_id || 'unknown';
+  const noData = data.no_full_data;
+
+  body.innerHTML = `
+    <!-- Header strip -->
+    <div class="hm-header ${isT?'threat':'safe'}">
+      <div class="hm-hinfo">
+        <div class="hm-risk-badge r-${risk.toLowerCase()}">${isT?'⚠ ':'✓ '}${risk}</div>
+        <div class="hm-title">Analysis #${id}</div>
+        <div class="hm-meta">${data.date||''} ${data.time||''} · ${data.source||'upload'} · ${data.duration||'—'}s</div>
+      </div>
+      <div class="hm-score-big">${pct}%</div>
+    </div>
+
+    <!-- Device info banner -->
+    <div class="hm-device-row">
+      <span>🖥 <b>Device:</b> ${did}</span>
+      <span>${loc}</span>
+      <span>⏱ ${data.date||''} ${data.time||''}</span>
+    </div>
+
+    ${noData ? `
+    <div style="padding:24px;text-align:center;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;margin:16px 0;font-size:12px;color:#92400E">
+      ⚠ This record was created before full-result storage was added. Detailed analysis panels are not available for this record.
+      Only records created after the v4.5 update will show full analysis.
+    </div>
+    ` : `
+    <!-- Gauge + Top classes row -->
+    <div class="hm-grid2" style="margin-top:16px">
+      <div class="hm-card">
+        <div class="hm-card-title">THREAT SCORE</div>
+        <div style="display:flex;align-items:center;gap:20px;padding:16px">
+          <canvas id="hmGauge" width="110" height="110"></canvas>
+          <div>
+            <div style="font-size:42px;font-weight:800;line-height:1;color:${isT?'#DC2626':risk==='MEDIUM'?'#D97706':'#059669'}">${pct}%</div>
+            <div style="font-size:10px;color:var(--t4);margin-top:6px;font-weight:600">THRESHOLD τ = ${(data.threshold||0.35).toFixed(2)}</div>
+            <div style="font-size:10px;color:var(--t3);margin-top:4px">${data.num_threat_vocab||137} threat vocab keywords</div>
+          </div>
+        </div>
+      </div>
+      <div class="hm-card">
+        <div class="hm-card-title">TOP 10 AUDIO CLASSES</div>
+        <div id="hmClasses" style="padding:12px 16px"></div>
+      </div>
+    </div>
+
+    <!-- Spectrogram + Waveform -->
+    ${(data.spectrogram||data.waveform_img) ? `
+    <div class="hm-grid2" style="margin-top:14px">
+      ${data.spectrogram ? `<div class="hm-card"><div class="hm-card-title">LOG-MEL SPECTROGRAM</div><div class="img-wrap"><img src="data:image/png;base64,${data.spectrogram}" style="width:100%;border-radius:6px"></div></div>` : ''}
+      ${data.waveform_img ? `<div class="hm-card"><div class="hm-card-title">WAVEFORM</div><div class="img-wrap"><img src="data:image/png;base64,${data.waveform_img}" style="width:100%;border-radius:6px"></div></div>` : ''}
+    </div>` : ''}
+
+    <!-- Threat categories -->
+    ${data.threat_detail?.length ? `
+    <div class="hm-card" style="margin-top:14px">
+      <div class="hm-card-title">THREAT CATEGORY BREAKDOWN</div>
+      <div id="hmThrDetail" style="padding:12px 16px"></div>
+    </div>` : ''}
+
+    <!-- Temporal frames -->
+    ${data.frames?.length ? `
+    <div class="hm-card" style="margin-top:14px">
+      <div class="hm-card-title">TEMPORAL SEGMENT ANALYSIS — ${data.frames.length} FRAMES</div>
+      <div id="hmFrames" class="frames-grid" style="padding:12px 16px"></div>
+    </div>` : ''}
+    `}
+  `;
+
+  if (!noData) {
+    // Render gauge
+    setTimeout(() => {
+      drawMiniGaugeSize('hmGauge', data.threat_score, 110, 42);
+      renderClasses(data.all_sounds, 'hmClasses', 10);
+      if (data.threat_detail?.length) _renderThrDetail(data.threat_detail, 'hmThrDetail');
+      if (data.frames?.length) _renderFrames(data.frames, 'hmFrames');
+    }, 50);
+  }
 }
 
 // ═══════════════════════════════════════
@@ -479,12 +799,12 @@ function renderHistAlerts(rows) {
   const el=document.getElementById('histAlerts'); if(!el) return;
   if(!rows.length){el.innerHTML='<div class="empty" style="padding:24px">No threats recorded yet.</div>';return;}
   el.innerHTML=rows.map(r=>`
-    <div class="alert-item">
+    <div class="alert-item" onclick="openHistoryModal(${r.id})" style="cursor:pointer">
       <div class="ai-icon">⚠️</div>
       <div class="ai-body">
         <div class="ai-title">${(r.top_class||'Unknown').toUpperCase()}</div>
-        <div class="ai-detail">Score: ${(r.score*100).toFixed(1)}% · τ=0.75 exceeded · Source: ${r.source||'upload'}</div>
-        <div class="ai-time">${r.date} ${r.time}</div>
+        <div class="ai-detail">Score: ${(r.score*100).toFixed(1)}% · Source: ${r.source||'upload'}${r.location?' · 📍'+r.location:''}</div>
+        <div class="ai-time">${r.date} ${r.time}${r.device_id?' · 🖥 '+r.device_id.slice(0,12):''}</div>
       </div>
       <div class="ai-score">${(r.score*100).toFixed(0)}%</div>
     </div>`).join('');
@@ -495,11 +815,12 @@ function prependLive(data) {
   const top=data.multi_threat?.[0]?.label||'Unknown';
   const item=document.createElement('div');
   item.className='alert-item';
+  const loc = data.location ? ` · 📍${data.location}` : '';
   item.innerHTML=`
     <div class="ai-icon">🔴</div>
     <div class="ai-body">
       <div class="ai-title">${top.toUpperCase()} — LIVE</div>
-      <div class="ai-detail">Score ${(data.threat_score*100).toFixed(1)}% · Source: ${data.source} · #${data.id}</div>
+      <div class="ai-detail">Score ${(data.threat_score*100).toFixed(1)}% · Source: ${data.source} · #${data.id}${loc}</div>
       <div class="ai-time">${new Date().toLocaleString()}</div>
     </div>
     <div class="ai-score">${(data.threat_score*100).toFixed(0)}%</div>`;
@@ -509,7 +830,7 @@ function prependLive(data) {
 }
 
 // ═══════════════════════════════════════
-//  GAUGE (full ring)
+//  GAUGES
 // ═══════════════════════════════════════
 function drawGauge(score,risk) {
   const c=document.getElementById('gaugeC'); if(!c) return;
@@ -517,55 +838,45 @@ function drawGauge(score,risk) {
   c.width=S; c.height=S;
   const ctx=c.getContext('2d');
   ctx.clearRect(0,0,S,S);
-
-  // Track
   ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
   ctx.strokeStyle='#E2E8F0'; ctx.lineWidth=12; ctx.stroke();
-
-  // Zone hints
-  [[0,.3,'rgba(5,150,105,.08)'],[.3,TAU,'rgba(217,119,6,.08)'],[TAU,1,'rgba(220,38,38,.1)']].forEach(([a,b,cl])=>{
+  [[0,.2,'rgba(5,150,105,.08)'],[.2,TAU,'rgba(217,119,6,.08)'],[TAU,1,'rgba(220,38,38,.1)']].forEach(([a,b,cl])=>{
     ctx.beginPath(); ctx.arc(cx,cy,r,-Math.PI/2+a*Math.PI*2,-Math.PI/2+b*Math.PI*2);
     ctx.strokeStyle=cl; ctx.lineWidth=12; ctx.stroke();
   });
-
-  // Fill arc
-  const clr=score>=TAU?COLORS.red:score>=.3?COLORS.amber:COLORS.green;
+  const clr=score>=TAU?COLORS.red:score>=.2?COLORS.amber:COLORS.green;
   const g=ctx.createLinearGradient(cx-r,cy,cx+r,cy);
   if(score>=TAU){g.addColorStop(0,'#DC2626');g.addColorStop(1,'#EF4444');}
-  else if(score>=.3){g.addColorStop(0,'#D97706');g.addColorStop(1,'#F59E0B');}
+  else if(score>=.2){g.addColorStop(0,'#D97706');g.addColorStop(1,'#F59E0B');}
   else{g.addColorStop(0,'#059669');g.addColorStop(1,'#10B981');}
   ctx.beginPath(); ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+(score||0)*Math.PI*2);
   ctx.strokeStyle=g; ctx.lineWidth=12; ctx.lineCap='round'; ctx.stroke();
-
-  // Glow on threat
   if(score>=TAU) {
     ctx.beginPath(); ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+score*Math.PI*2);
     ctx.strokeStyle='rgba(220,38,38,.15)'; ctx.lineWidth=20; ctx.stroke();
   }
-
-  // τ marker
   const ta=-Math.PI/2+TAU*Math.PI*2;
   ctx.beginPath();
   ctx.moveTo(cx+(r-8)*Math.cos(ta),cy+(r-8)*Math.sin(ta));
   ctx.lineTo(cx+(r+7)*Math.cos(ta),cy+(r+7)*Math.sin(ta));
   ctx.strokeStyle='#64748B'; ctx.lineWidth=2; ctx.lineCap='round'; ctx.stroke();
-
   const pe=document.getElementById('gaugePct'),le=document.getElementById('gaugeRisk');
   if(pe){pe.textContent=score!=null?Math.round(score*100)+'%':'—';pe.style.color=clr;}
   if(le){le.textContent=risk||'—';le.className='gauge-risk '+(risk||'safe').toLowerCase();}
 }
-
-function drawMiniGauge(id,score) {
+function drawMiniGauge(id,score) { drawMiniGaugeSize(id,score,82,30); }
+function drawMiniGaugeSize(id,score,S,r) {
   const c=document.getElementById(id); if(!c) return;
-  const S=82,cx=S/2,cy=S/2,r=30;
+  const cx=S/2,cy=S/2;
   c.width=S; c.height=S;
   const ctx=c.getContext('2d');
   ctx.clearRect(0,0,S,S);
-  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.strokeStyle='#E2E8F0'; ctx.lineWidth=8; ctx.stroke();
-  const clr=score>=TAU?COLORS.red:score>=.3?COLORS.amber:COLORS.green;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.strokeStyle='#E2E8F0'; ctx.lineWidth=S/10; ctx.stroke();
+  const clr=score>=TAU?COLORS.red:score>=.2?COLORS.amber:COLORS.green;
   ctx.beginPath(); ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+(score||0)*Math.PI*2);
-  ctx.strokeStyle=clr; ctx.lineWidth=8; ctx.lineCap='round'; ctx.stroke();
-  ctx.fillStyle=clr; ctx.font='bold 12px "IBM Plex Mono",monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.strokeStyle=clr; ctx.lineWidth=S/10; ctx.lineCap='round'; ctx.stroke();
+  ctx.fillStyle=clr; ctx.font=`bold ${Math.round(S/6.5)}px "IBM Plex Mono",monospace`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText(Math.round(score*100)+'%',cx,cy);
 }
 
@@ -581,20 +892,19 @@ function drawProbChart(frames) {
     type:'bar',
     data:{labels,datasets:[{
       label:'Threat Score (%)', data:probs, borderRadius:5, borderSkipped:false,
-      backgroundColor:probs.map(p=>p>=75?'rgba(220,38,38,.7)':p>=30?'rgba(217,119,6,.6)':'rgba(5,150,105,.6)'),
-      borderColor:probs.map(p=>p>=75?COLORS.red:p>=30?COLORS.amber:COLORS.green),
+      backgroundColor:probs.map(p=>p>=35?'rgba(220,38,38,.7)':p>=20?'rgba(217,119,6,.6)':'rgba(5,150,105,.6)'),
+      borderColor:probs.map(p=>p>=35?COLORS.red:p>=20?COLORS.amber:COLORS.green),
       borderWidth:1.5,
     },{
       type:'line', label:'Score', data:probs, tension:.45,
       borderColor:COLORS.blue, borderWidth:2, pointRadius:5,
-      pointBackgroundColor:probs.map(p=>p>=75?COLORS.red:p>=30?COLORS.amber:COLORS.green),
+      pointBackgroundColor:probs.map(p=>p>=35?COLORS.red:p>=20?COLORS.amber:COLORS.green),
       fill:false,
     }]},
     options:{responsive:true,maintainAspectRatio:true,
       plugins:{
         legend:{display:false},
-        annotation:{annotations:{tau:{type:'line',yMin:75,yMax:75,borderColor:COLORS.red,borderWidth:1.5,borderDash:[5,5],label:{content:'τ=0.75',display:true,color:COLORS.red,font:{size:9}}}}},
-        tooltip:{backgroundColor:'rgba(255,255,255,.98)',borderColor:'#E2E8F0',borderWidth:1,titleColor:'#334155',bodyColor:'#4361EE',bodyFont:{family:'IBM Plex Mono',size:11},padding:10,boxShadow:'0 4px 16px rgba(0,0,0,.1)'}
+        tooltip:{backgroundColor:'rgba(255,255,255,.98)',borderColor:'#E2E8F0',borderWidth:1,titleColor:'#334155',bodyColor:'#4361EE',bodyFont:{family:'IBM Plex Mono',size:11},padding:10}
       },
       scales:{
         x:{ticks:{color:'#64748B',font:{family:'IBM Plex Mono',size:10}},grid:{color:'#F1F5F9'}},
@@ -604,7 +914,7 @@ function drawProbChart(frames) {
 }
 
 // ═══════════════════════════════════════
-//  CLASSES
+//  CLASSES / THREAT DETAIL / FRAMES / META
 // ═══════════════════════════════════════
 function renderClasses(sounds,id,max) {
   const el=document.getElementById(id); if(!el) return;
@@ -623,38 +933,26 @@ function renderClasses(sounds,id,max) {
     </div>`;
   }).join('');
 }
-
-// ═══════════════════════════════════════
-//  THREAT DETAIL
-// ═══════════════════════════════════════
-function renderThrDetail(threats) {
-  _renderThrDetail(threats,'thrList');
-}
-function renderThrDetail2(threats) {
-  _renderThrDetail(threats,'resThrList');
-}
+function renderThrDetail(threats) { _renderThrDetail(threats,'thrList'); }
+function renderThrDetail2(threats) { _renderThrDetail(threats,'resThrList'); }
 function _renderThrDetail(threats,id) {
   const el=document.getElementById(id); if(!el) return;
-  if(!threats?.length){el.innerHTML='<div class="empty">No threat-class signals</div>';return;}
+  if(!threats?.length){el.innerHTML='<div class="empty">No threat signals detected</div>';return;}
   el.innerHTML=threats.map(t=>{
-    const cls=t.pct>=75?'high':t.pct>=30?'medium':'low';
+    const cls=t.pct>=35?'high':t.pct>=20?'medium':'low';
     return `<div class="thr-item">
       <div class="thr-hd"><span class="thr-name">${t.class}</span><span class="thr-pct">${t.pct}%</span></div>
       <div class="thr-bar-bg"><div class="thr-bar-fill ${cls}" style="width:${Math.min(t.pct,100)}%"></div></div>
     </div>`;
   }).join('');
 }
-
-// ═══════════════════════════════════════
-//  TEMPORAL FRAMES
-// ═══════════════════════════════════════
 function renderFrames(frames) { _renderFrames(frames,'framesGrid'); }
 function renderFrames2(frames){ _renderFrames(frames,'resFrames'); }
 function _renderFrames(frames,id) {
   const el=document.getElementById(id); if(!el||!frames?.length) return;
   el.innerHTML=frames.map(f=>{
     const pct=(f.threat_score*100).toFixed(1);
-    const cls=f.threat_score>=TAU?'high':f.threat_score>=.3?'med':'safe';
+    const cls=f.threat_score>=TAU?'high':f.threat_score>=.2?'med':'safe';
     return `<div class="frame-card${f.is_threat?' thr':''}">
       <div class="frame-time">${f.start}s – ${f.end}s</div>
       <div class="frame-label${f.is_threat?' thr':''}" title="${f.label}">${f.label}</div>
@@ -663,10 +961,6 @@ function _renderFrames(frames,id) {
     </div>`;
   }).join('');
 }
-
-// ═══════════════════════════════════════
-//  METADATA
-// ═══════════════════════════════════════
 function renderMeta(data) { _renderMeta(data,'metaGrid'); }
 function renderMeta2(data){ _renderMeta(data,'resMeta'); }
 function _renderMeta(data,id) {
@@ -675,12 +969,8 @@ function _renderMeta(data,id) {
     <div class="meta-item"><div class="meta-val2">${data.duration??'—'}s</div><div class="meta-lbl2">Duration</div></div>
     <div class="meta-item"><div class="meta-val2">${data.sample_rate??16000}</div><div class="meta-lbl2">Sample Rate</div></div>
     <div class="meta-item"><div class="meta-val2">${data.num_classes??527}</div><div class="meta-lbl2">Classes</div></div>
-    <div class="meta-item"><div class="meta-val2">${(data.threshold||.75).toFixed(2)}</div><div class="meta-lbl2">Threshold τ</div></div>`;
+    <div class="meta-item"><div class="meta-val2">${(data.threshold||.35).toFixed(2)}</div><div class="meta-lbl2">Threshold τ</div></div>`;
 }
-
-// ═══════════════════════════════════════
-//  IMAGE RENDER HELPERS
-// ═══════════════════════════════════════
 function renderImg(imgId,emptyId,b64) {
   const img=document.getElementById(imgId), emp=document.getElementById(emptyId);
   if(!img||!b64) return;
