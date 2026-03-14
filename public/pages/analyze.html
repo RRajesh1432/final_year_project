@@ -24,7 +24,7 @@
     <a href="/pages/history.html" class="nav-a" data-p="history"><svg class="nav-ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="7"/><polyline points="9,5 9,9 12,11"/></svg>History</a>
     <a href="/pages/alerts.html"  class="nav-a" data-p="alerts"><svg class="nav-ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2a5 5 0 0 0-5 5v4l-1.5 2h13L14 11V7a5 5 0 0 0-5-5z"/><path d="M7 15a2 2 0 0 0 4 0"/></svg>Alerts<span class="nav-badge" id="navBadge">0</span></a>
   </nav>
-  <div class="sinfo"><div class="sinfo-hdr">Model Config</div><div class="sinfo-row"><span>Threshold τ</span><span class="sinfo-val hi">0.75</span></div><div class="sinfo-row"><span>Macro-F1</span><span class="sinfo-val hi">0.88</span></div><div class="sinfo-row"><span>AUC</span><span class="sinfo-val hi">0.962</span></div><div class="sinfo-row"><span>FAR</span><span class="sinfo-val">3.2%</span></div></div>
+  <div class="sinfo"><div class="sinfo-hdr">Model Config</div><div class="sinfo-row"><span>Threshold τ</span><span class="sinfo-val hi">0.25 / 0.75</span></div><div class="sinfo-row"><span>Macro-F1</span><span class="sinfo-val hi">0.88</span></div><div class="sinfo-row"><span>AUC</span><span class="sinfo-val hi">0.962</span></div><div class="sinfo-row"><span>FAR</span><span class="sinfo-val">3.2%</span></div></div>
 </aside>
 
 <nav class="bot-nav"><div class="bot-nav-inner">
@@ -151,7 +151,8 @@
           <div>
             <div style="font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:1px;font-weight:600">Threat Score</div>
             <div style="font-size:40px;font-weight:800;color:var(--t1);line-height:1;letter-spacing:-2px" id="resPct">—</div>
-            <div style="font-size:11px;color:var(--t3);margin-top:4px" id="resTauDisplay">τ = 0.75 (paper)</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:4px">τ_base = 0.25 · τ_paper = 0.75</div>
+          <div id="detectionReason" style="display:none;margin-top:6px;font-size:10px;font-weight:600;color:#DC2626;background:#FEF2F2;border-radius:5px;padding:4px 8px"></div>
           </div>
         </div>
         <div style="margin-bottom:12px"><div style="font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-bottom:6px">Top 10 Classes</div><div id="resClasses"></div></div>

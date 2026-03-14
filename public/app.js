@@ -4,7 +4,7 @@
 
 const API     = window.BACKEND_URL || '';
 const THREATS = ['gunshot','explosion','glass','scream','siren'];
-const TAU     = 0.75;  // Paper Section 3.4: τ=0.75
+const TAU     = 0.25;  // Base model τ (paper τ=0.75 for fine-tuned)
 const COLORS  = { blue:'#4361EE',green:'#059669',red:'#DC2626',amber:'#D97706',sky:'#0284C7',violet:'#7C3AED' };
 
 let _chart=null, _socket=null, _swReg=null;
@@ -430,6 +430,12 @@ function showResult(data) {
   renderFrames2(data.frames);
   renderMeta2(data);
   card.scrollIntoView({behavior:'smooth'});
+  // Show detection reason if available
+  const reasonEl = document.getElementById('detectionReason');
+  if (reasonEl && data.detection_reason) {
+    reasonEl.textContent = 'Detected via: ' + data.detection_reason;
+    reasonEl.style.display = 'block';
+  }
   if(data.threat_detected) showBanner(data);
 }
 
@@ -604,7 +610,7 @@ function updateLiveChunk(n, data, err) {
   const pct   = (data.threat_score * 100).toFixed(1);
   const risk  = data.risk || 'SAFE';
   const top   = data.all_sounds?.[0]?.label || '—';
-  const cls   = data.threat_detected ? 'threat' : (data.threat_score >= 0.30 ? 'medium' : 'safe');
+  const cls   = data.threat_detected ? 'threat' : (data.threat_score >= 0.15 ? 'medium' : 'safe');
   el.className = `live-chunk-row ${cls}`;
   el.querySelector('.lc-label').textContent = top;
   el.querySelector('.lc-bar').style.width   = Math.min(data.threat_score * 100, 100) + '%';
@@ -840,11 +846,11 @@ function drawGauge(score,risk) {
   ctx.clearRect(0,0,S,S);
   ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
   ctx.strokeStyle='#E2E8F0'; ctx.lineWidth=12; ctx.stroke();
-  [[0,.30,'rgba(5,150,105,.08)'],[.30,TAU,'rgba(217,119,6,.08)'],[TAU,1,'rgba(220,38,38,.1)']].forEach(([a,b,cl])=>{
+  [[0,.15,'rgba(5,150,105,.08)'],[.15,TAU,'rgba(217,119,6,.08)'],[TAU,1,'rgba(220,38,38,.1)']].forEach(([a,b,cl])=>{
     ctx.beginPath(); ctx.arc(cx,cy,r,-Math.PI/2+a*Math.PI*2,-Math.PI/2+b*Math.PI*2);
     ctx.strokeStyle=cl; ctx.lineWidth=12; ctx.stroke();
   });
-  const clr=score>=TAU?COLORS.red:score>=.30?COLORS.amber:COLORS.green;
+  const clr=score>=TAU?COLORS.red:score>=.15?COLORS.amber:COLORS.green;
   const g=ctx.createLinearGradient(cx-r,cy,cx+r,cy);
   if(score>=TAU){g.addColorStop(0,'#DC2626');g.addColorStop(1,'#EF4444');}
   else if(score>=.2){g.addColorStop(0,'#D97706');g.addColorStop(1,'#F59E0B');}
@@ -872,7 +878,7 @@ function drawMiniGaugeSize(id,score,S,r) {
   const ctx=c.getContext('2d');
   ctx.clearRect(0,0,S,S);
   ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.strokeStyle='#E2E8F0'; ctx.lineWidth=S/10; ctx.stroke();
-  const clr=score>=TAU?COLORS.red:score>=.30?COLORS.amber:COLORS.green;
+  const clr=score>=TAU?COLORS.red:score>=.15?COLORS.amber:COLORS.green;
   ctx.beginPath(); ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+(score||0)*Math.PI*2);
   ctx.strokeStyle=clr; ctx.lineWidth=S/10; ctx.lineCap='round'; ctx.stroke();
   ctx.fillStyle=clr; ctx.font=`bold ${Math.round(S/6.5)}px "IBM Plex Mono",monospace`;
@@ -939,7 +945,7 @@ function _renderThrDetail(threats,id) {
   const el=document.getElementById(id); if(!el) return;
   if(!threats?.length){el.innerHTML='<div class="empty">No threat signals detected</div>';return;}
   el.innerHTML=threats.map(t=>{
-    const cls=t.pct>=75?'high':t.pct>=30?'medium':'low';
+    const cls=t.pct>=25?'high':t.pct>=15?'medium':'low';
     return `<div class="thr-item">
       <div class="thr-hd"><span class="thr-name">${t.class}</span><span class="thr-pct">${t.pct}%</span></div>
       <div class="thr-bar-bg"><div class="thr-bar-fill ${cls}" style="width:${Math.min(t.pct,100)}%"></div></div>
@@ -952,7 +958,7 @@ function _renderFrames(frames,id) {
   const el=document.getElementById(id); if(!el||!frames?.length) return;
   el.innerHTML=frames.map(f=>{
     const pct=(f.threat_score*100).toFixed(1);
-    const cls=f.threat_score>=TAU?'high':f.threat_score>=.30?'med':'safe';
+    const cls=f.threat_score>=TAU?'high':f.threat_score>=.15?'med':'safe';
     return `<div class="frame-card${f.is_threat?' thr':''}">
       <div class="frame-time">${f.start}s – ${f.end}s</div>
       <div class="frame-label${f.is_threat?' thr':''}" title="${f.label}">${f.label}</div>
