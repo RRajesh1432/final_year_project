@@ -1,1 +1,1 @@
-window.BACKEND_URL = 'https://rajeshragi-project.hf.space';
+window.BACKEND_URL = 'https://rajeshragi-final.hf.space';
